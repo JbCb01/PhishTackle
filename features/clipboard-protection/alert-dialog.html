@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clipboard Write Intercepted</title>
+  <link rel="stylesheet" href="alert-dialog.css">
+</head>
+<body>
+  <div class="alert-card">
+    <div class="alert-header">
+      <div class="alert-icon">📋</div>
+      <div class="alert-title-wrap">
+        <h1 class="alert-title">Clipboard Write Intercepted</h1>
+        <p class="alert-subtitle" id="alert-domain">Domain: —</p>
+      </div>
+    </div>
+
+    <div class="alert-body">
+      <div class="info-row">
+        <span class="info-label">Trigger:</span>
+        <span class="info-value" id="alert-trigger">—</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Method:</span>
+        <span class="info-value info-value--mono" id="alert-method">navigator.clipboard.writeText</span>
+      </div>
+      <div class="payload-box">
+        <div class="payload-box__label">Copied Payload Preview:</div>
+        <div class="payload-box__content" id="alert-payload">—</div>
+      </div>
+    </div>
+
+    <div class="alert-actions">
+      <button id="btn-keep" class="btn btn--keep" title="Keep the copied text on clipboard">✔️ Keep</button>
+      <button id="btn-clear" class="btn btn--clear" title="Override clipboard with blank empty string">🧹 Clear (Blank)</button>
+    </div>
+  </div>
+
+  <script src="alert-dialog.js" type="module"></script>
+</body>
+</html>

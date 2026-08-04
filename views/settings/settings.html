@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ULTRA Phish Catcher — Settings</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="settings-container">
+    <header class="settings-header">
+      <div class="settings-header__brand">
+        <svg class="settings-header__logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V7l-9-5zm0 4a3 3 0 013 3c0 1.66-1.34 3-3 3s-3-1.34-3-3a3 3 0 013-3zm0 14.3c-2.5-1-4.71-3.13-5.63-5.8.68-.45 2.51-1.5 5.63-1.5 3.12 0 4.95 1.05 5.63 1.5-.92 2.67-3.13 4.8-5.63 5.8z" fill="currentColor"/>
+        </svg>
+        <div>
+          <h1 class="settings-header__title">ULTRA Phish Catcher</h1>
+          <p class="settings-header__subtitle">Extension Settings</p>
+        </div>
+      </div>
+      <button id="btn-save-top" class="settings-btn settings-btn--primary">
+        Save Settings
+      </button>
+    </header>
+
+    <!-- 1. FEATURE TOGGLES (All ON/OFF Settings) -->
+    <section class="settings-section">
+      <div class="settings-section__header">
+        <h2 class="settings-section__title">Protection & Assistant Settings</h2>
+        <p class="settings-section__desc">
+          Toggle protection modules and content script integrations on or off.
+        </p>
+      </div>
+      <div class="settings-section__content" style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- Google Search Assistant -->
+        <label class="settings-toggle-row" for="google-search-checkboxes-toggle">
+          <div class="settings-toggle-info">
+            <span class="settings-toggle-label">Google search checkboxes</span>
+            <span class="settings-toggle-desc">Injects checkboxes on google.com/search results for quick reporting</span>
+          </div>
+          <div class="settings-toggle-switch">
+            <input type="checkbox" id="google-search-checkboxes-toggle" class="settings-toggle-input" checked>
+            <span class="settings-toggle-track"></span>
+          </div>
+        </label>
+
+        <!-- Facebook Auto-Refresh -->
+        <label class="settings-toggle-row" for="facebook-prevent-refresh-toggle">
+          <div class="settings-toggle-info">
+            <span class="settings-toggle-label">Prevent Facebook auto-refresh</span>
+            <span class="settings-toggle-desc">Blocks tab visibility change detection on facebook.com</span>
+          </div>
+          <div class="settings-toggle-switch">
+            <input type="checkbox" id="facebook-prevent-refresh-toggle" class="settings-toggle-input" checked>
+            <span class="settings-toggle-track"></span>
+          </div>
+        </label>
+
+        <!-- Download Protection -->
+        <label class="settings-toggle-row" for="download-protection-toggle">
+          <div class="settings-toggle-info">
+            <span class="settings-toggle-label">Download Protection <span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); margin-left: 4px;">BETA</span></span>
+            <span class="settings-toggle-desc">Pauses file downloads and requires user approval via mini alert window</span>
+          </div>
+          <div class="settings-toggle-switch">
+            <input type="checkbox" id="download-protection-toggle" class="settings-toggle-input" checked>
+            <span class="settings-toggle-track"></span>
+          </div>
+        </label>
+
+        <!-- Clipboard Protection -->
+        <label class="settings-toggle-row" for="clipboard-protection-toggle">
+          <div class="settings-toggle-info">
+            <span class="settings-toggle-label">Clipboard Protection <span style="font-size: 10px; padding: 1px 5px; border-radius: 4px; background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); margin-left: 4px;">BETA</span></span>
+            <span class="settings-toggle-desc">Intercepts unprompted clipboard writes and presents mini alert window</span>
+          </div>
+          <div class="settings-toggle-switch">
+            <input type="checkbox" id="clipboard-protection-toggle" class="settings-toggle-input" checked>
+            <span class="settings-toggle-track"></span>
+          </div>
+        </label>
+      </div>
+    </section>
+
+    <!-- 2. LIST REFRESH INTERVAL -->
+    <section class="settings-section">
+      <div class="settings-section__header">
+        <h2 class="settings-section__title">List Refresh</h2>
+        <p class="settings-section__desc">
+          How often the extension should download the updated domain list from hole.cert.pl.
+        </p>
+      </div>
+      <div class="settings-section__content">
+        <div class="settings-select-group">
+          <label for="refresh-interval" class="settings-select-label">Refresh interval:</label>
+          <select id="refresh-interval" class="settings-select">
+            <option value="1">Every 1 hour</option>
+            <option value="3">Every 3 hours</option>
+            <option value="6" selected>Every 6 hours</option>
+            <option value="12">Every 12 hours</option>
+            <option value="24">Every 24 hours</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. EXCLUSIONS & CATEGORIES LISTS -->
+    <section class="settings-section">
+      <div class="settings-section__header">
+        <h2 class="settings-section__title">Excluded Domains</h2>
+        <p class="settings-section__desc">
+          Domains matching the rules below will not be checked against the blocklist. One rule per line.
+        </p>
+      </div>
+      <div class="settings-section__content">
+        <textarea
+          id="exclusions-textarea"
+          class="settings-textarea"
+          rows="5"
+          placeholder="Example rules:&#10;*.gov.com&#10;facebook.com&#10;*.google.com&#10;*.microsoft.com&#10;example.com"
+          spellcheck="false"
+        ></textarea>
+
+        <div class="settings-help">
+          <div class="settings-help__title">Rule format:</div>
+          <ul class="settings-help__list">
+            <li><code>facebook.com</code> — excludes exactly this domain (and www.facebook.com)</li>
+            <li><code>*.example.com</code> — excludes example.com and all subdomains (e.g. abc.example.com)</li>
+          </ul>
+        </div>
+
+        <div id="exclusions-preview" class="settings-preview" hidden>
+          <div class="settings-preview__title">Rule preview:</div>
+          <div id="exclusions-preview-list" class="settings-preview__tags"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <div class="settings-section__header">
+        <h2 class="settings-section__title">Excluded IP Addresses (WAF/Trusted)</h2>
+        <p class="settings-section__desc">
+          IP addresses matching the rules below will not be flagged with an alert icon. Useful for ignoring trusted WAF providers or local subnets. One rule per line.
+        </p>
+      </div>
+      <div class="settings-section__content">
+        <textarea
+          id="excluded-ips-textarea"
+          class="settings-textarea"
+          rows="5"
+          placeholder="Example rules:&#10;104.16.0.0/12 (Cloudflare)&#10;8.8.8.8 (Google Public DNS)&#10;192.168.1.* (Wildcard)&#10;127.0.0.1"
+          spellcheck="false"
+        ></textarea>
+
+        <div class="settings-help">
+          <div class="settings-help__title">IP rule format:</div>
+          <ul class="settings-help__list">
+            <li><code>127.0.0.1</code> — exact IP match</li>
+            <li><code>104.16.0.0/12</code> — matches the entire subnet (CIDR notation)</li>
+            <li><code>192.168.1.*</code> — wildcard match</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <div class="settings-section__header">
+        <h2 class="settings-section__title">Report Categories</h2>
+        <p class="settings-section__desc">
+          Define the list of categories available when reporting suspicious domains. One category per line.
+        </p>
+      </div>
+      <div class="settings-section__content">
+        <textarea
+          id="categories-textarea"
+          class="settings-textarea"
+          rows="5"
+          placeholder="e.g.&#10;phishing&#10;malware&#10;scam&#10;suspicious&#10;other"
+          spellcheck="false"
+        ></textarea>
+      </div>
+    </section>
+
+    <!-- 4. CACHE STATUS AT THE END -->
+    <section class="settings-section">
+      <div class="settings-section__header">
+        <h2 class="settings-section__title">Cache Status</h2>
+      </div>
+      <div class="settings-section__content">
+        <div class="settings-status">
+          <div class="settings-status__item">
+            <span class="settings-status__label">Domains in cache:</span>
+            <span id="cache-count" class="settings-status__value">—</span>
+          </div>
+          <div class="settings-status__item">
+            <span class="settings-status__label">Last update:</span>
+            <span id="cache-updated" class="settings-status__value">—</span>
+          </div>
+          <div class="settings-status__item">
+            <span class="settings-status__label">Connection status:</span>
+            <span id="cache-online" class="settings-status__value settings-status__value--online">Checking...</span>
+          </div>
+        </div>
+        <button id="btn-clear-cache" class="settings-btn settings-btn--secondary">
+          Clear cache
+        </button>
+      </div>
+    </section>
+
+    <!-- 5. BOTTOM ACTIONS -->
+    <div class="settings-actions">
+      <div id="save-feedback" class="settings-feedback" hidden></div>
+      <button id="btn-save" class="settings-btn settings-btn--primary">
+        Save Settings
+      </button>
+    </div>
+  </div>
+
+  <script src="settings.js" type="module"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Download Intercepted</title>
+  <link rel="stylesheet" href="alert-dialog.css">
+</head>
+<body>
+  <div class="alert-card">
+    <div class="alert-header">
+      <div class="alert-icon">⚠️</div>
+      <div class="alert-title-wrap">
+        <h1 class="alert-title">Download Intercepted</h1>
+        <p class="alert-subtitle" id="alert-domain">Domain: —</p>
+      </div>
+    </div>
+
+    <div class="alert-body">
+      <div class="file-info-row">
+        <span class="file-label">File:</span>
+        <span class="file-value" id="alert-filename">—</span>
+      </div>
+      <div class="file-info-row">
+        <span class="file-label">MIME:</span>
+        <span class="file-value file-value--mime" id="alert-mime">application/octet-stream</span>
+      </div>
+      <div class="file-meta-row">
+        <span class="meta-tag" id="alert-ext">.EXE</span>
+        <span class="meta-tag" id="alert-size">2.4 MB</span>
+      </div>
+    </div>
+
+    <div class="alert-actions">
+      <button id="btn-allow" class="btn btn--allow" title="Resume normal download">✔️ Allow</button>
+      <button id="btn-safe" class="btn btn--safe" title="Download with .sample extension">🛡️ Safe (.sample)</button>
+      <button id="btn-block" class="btn btn--block" title="Cancel and delete file">🚫 Block</button>
+    </div>
+  </div>
+
+  <script src="alert-dialog.js" type="module"></script>
+</body>
+</html>
