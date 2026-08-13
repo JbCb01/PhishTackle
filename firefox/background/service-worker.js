@@ -573,14 +573,14 @@ const ipInfoMemoryMap = new Map();
 async function getIpInfo(ip) {
   if (!ip) return null;
   const memData = ipInfoMemoryMap.get(ip);
-  if (memData && (Date.now() - memData.timestamp < 86400000)) {
+  if (memData && memData.asn !== undefined && (Date.now() - memData.timestamp < 86400000)) {
     return memData;
   }
 
   const storageKey = `ipinfo_${ip}`;
   try {
     const cached = await chrome.storage.local.get(storageKey);
-    if (cached[storageKey] && (Date.now() - cached[storageKey].timestamp < 86400000)) {
+    if (cached[storageKey] && cached[storageKey].asn !== undefined && (Date.now() - cached[storageKey].timestamp < 86400000)) {
       ipInfoMemoryMap.set(ip, cached[storageKey]);
       return cached[storageKey];
     }
