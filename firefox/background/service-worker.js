@@ -4,6 +4,7 @@ import {
   matchesExclusion,
   findDomainInList,
   cleanUrl,
+  preserveFullUrl,
   parseYamlConfig
 } from '../utils/domain-utils.js';
 
@@ -13,9 +14,9 @@ import {
 
 const DOMAINS_URL = 'https://hole.cert.pl/domains/v2/domains.json';
 const ALARM_NAME = 'refresh-domain-list';
-const STORAGE_KEY_DOMAINS = 'ultra_domains';
-const STORAGE_KEY_META = 'ultra_meta';
-const STORAGE_KEY_SETTINGS = 'ultra_settings';
+const STORAGE_KEY_DOMAINS = 'phishtackle_domains';
+const STORAGE_KEY_META = 'phishtackle_meta';
+const STORAGE_KEY_SETTINGS = 'phishtackle_settings';
 
 // ==========================================
 // Global State
@@ -28,30 +29,37 @@ let totalDomains = 0;
 let configCache = null;
 let currentRefreshPromise = null;
 const fallbackSessionMap = new Map();
+const domainSslMemoryMap = new Map();
 
 // ==========================================
 // Event Listeners & Lifecycle
 // ==========================================
 
-/** Handles extension installation and updates. */
-chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('[ULTRA Phish Catcher] Installed/updated:', details.reason);
-  await clearSslCache();
-  await loadDomainList();
-  await setupAlarm();
+/** Handles extension installation and updates non-blockingly. */
+chrome.runtime.onInstalled.addListener((details) => {
+  console.log('[PhishTackle] Installed/updated:', details.reason);
+  clearSslCache().catch(() => {});
+  restoreFromCache().then((restored) => {
+    if (!restored) {
+      loadDomainList().catch((e) => console.warn('[PhishTackle] Background load error:', e.message));
+    }
+  });
+  setupAlarm().catch(() => {});
 });
 
 /** Handles periodic alarms for domain list refresh. */
 chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === ALARM_NAME) {
-    console.log('[ULTRA Phish Catcher] Alarm triggered — refreshing domain list');
+    console.log('[PhishTackle] Alarm triggered — refreshing domain list');
     await loadDomainList();
   }
 });
 
-/** Intercepts network responses to capture server IP for active tabs. */
-if (chrome.webRequest?.onResponseStarted) {
-  chrome.webRequest.onResponseStarted.addListener(
+/** Intercepts network responses to capture server IP and native Firefox SSL security info. */
+const webRequestApi = (typeof browser !== 'undefined' && browser.webRequest) ? browser.webRequest : chrome.webRequest;
+
+if (webRequestApi?.onResponseStarted) {
+  webRequestApi.onResponseStarted.addListener(
     (details) => {
       if (details.tabId && details.tabId !== -1 && details.ip && details.type === 'main_frame') {
         const domain = extractDomain(details.url);
@@ -69,38 +77,25 @@ if (chrome.webRequest?.onResponseStarted) {
   );
 }
 
-/** Intercepts security info for HTTPS connections in Firefox. */
-if (chrome.webRequest?.onHeadersReceived) {
-  chrome.webRequest.onHeadersReceived.addListener(
+if (webRequestApi?.onHeadersReceived) {
+  webRequestApi.onHeadersReceived.addListener(
     async (details) => {
-      if (details.tabId && details.tabId !== -1 && details.type === 'main_frame') {
-        const domain = extractDomain(details.url);
-        if (!domain) return;
+      const domain = extractDomain(details.url);
+      if (!domain) return;
 
-        try {
-          if (typeof chrome.webRequest.getSecurityInfo === 'function') {
-            const securityInfo = await chrome.webRequest.getSecurityInfo(details.requestId, {
-              certificateChain: true,
-              rawDER: false
-            });
+      try {
+        if (typeof webRequestApi.getSecurityInfo === 'function') {
+          const securityInfo = await webRequestApi.getSecurityInfo(details.requestId, {
+            certificateChain: true,
+            rawDER: false
+          });
 
-            if (securityInfo && securityInfo.state === 'secure') {
-              const cert = securityInfo.certificates?.[0];
-              const issuer = cert?.issuer || 'Unknown Issuer';
-              const validFrom = cert?.validity?.start || null;
-
-              await saveSessionData(`tab_ssl_${details.tabId}`, {
-                domain,
-                secure: true,
-                issuer,
-                validFrom,
-                source: 'firefox_security_info',
-                timestamp: Date.now()
-              });
-            }
+          if (securityInfo && securityInfo.state === 'secure') {
+            const sslData = processSecurityInfo(domain, securityInfo);
+            await saveSslData(domain, sslData, details.tabId);
           }
-        } catch { }
-      }
+        }
+      } catch { }
     },
     { urls: ['https://*/*'] },
     ['blocking']
@@ -123,11 +118,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message, sender)
     .then(sendResponse)
     .catch((err) => {
-      console.error('[ULTRA Phish Catcher] Message error:', err);
+      console.error('[PhishTackle] Message error:', err);
       sendResponse({ error: err.message });
     });
   return true;
 });
+
+async function getActiveTab() {
+  try {
+    let tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (tabs && tabs.length > 0 && tabs[0]?.url) return tabs[0];
+
+    tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs && tabs.length > 0 && tabs[0]?.url) return tabs[0];
+
+    tabs = await chrome.tabs.query({ active: true });
+    if (tabs && tabs.length > 0) {
+      const active = tabs.find(t => t.active && t.url && !t.url.startsWith('about:') && !t.url.startsWith('moz-extension:'));
+      if (active) return active;
+    }
+  } catch { }
+  return null;
+}
 
 async function handleMessage(message) {
   switch (message.action) {
@@ -135,8 +147,17 @@ async function handleMessage(message) {
       return await checkDomain(message.domain, -1, true);
     }
 
+    case 'checkDomainForTab': {
+      const domain = message.domain;
+      const tabId = message.tabId || -1;
+      const tabUrl = message.url || `https://${domain}`;
+      const isHttps = tabUrl.toLowerCase().startsWith('https:');
+      const result = await checkDomain(domain, tabId, isHttps);
+      return { ...result, currentDomain: domain, tabUrl };
+    }
+
     case 'checkCurrentTab': {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      const tab = await getActiveTab();
       if (tab?.url) {
         let urlToCheck = tab.url;
         if (tab.url.startsWith('about:neterror') || tab.url.startsWith('about:blocked')) {
@@ -153,7 +174,7 @@ async function handleMessage(message) {
           return { ...result, currentDomain: domain, tabUrl: urlToCheck };
         }
       }
-      return { found: false, error: 'Failed to get current tab URL' };
+      return { found: false, error: 'No active webpage tab found' };
     }
 
     case 'getListStatus': {
@@ -210,7 +231,7 @@ async function handleMessage(message) {
     }
 
     case 'addReport': {
-      const { url: reportUrl, category: reportCat } = message;
+      const { url: reportUrl, category: reportCat, date: targetDate, force = false } = message;
       if (!reportUrl || !reportCat) return { added: 0, skipped: 0, existingDate: null };
 
       await maybeRolloverDay();
@@ -218,16 +239,27 @@ async function handleMessage(message) {
       const storage = await chrome.storage.local.get(['reported_urls', 'reported_sessions']);
       const reportedUrls = storage.reported_urls || {};
       const reportedSessions = storage.reported_sessions || {};
-      const targetUrl = normalizeDomain(extractDomain(reportUrl) || cleanUrl(reportUrl));
+      const cleanDom = normalizeDomain(extractDomain(reportUrl) || cleanUrl(reportUrl));
 
-      const existingDate = findUrlDuplicateDate(targetUrl, reportedUrls, reportedSessions);
-      if (existingDate) {
+      const existingDate = findUrlDuplicateDate(cleanDom, reportedUrls, reportedSessions);
+      if (existingDate && !force) {
         return { added: 0, skipped: 1, existingDate: existingDate === 'today' ? today : existingDate };
       }
 
-      if (!reportedUrls[reportCat]) reportedUrls[reportCat] = [];
-      reportedUrls[reportCat].push(targetUrl);
-      await chrome.storage.local.set({ reported_urls: reportedUrls });
+      const rawUrlToStore = preserveFullUrl(reportUrl);
+
+      if (targetDate && targetDate !== today) {
+        if (!reportedSessions[targetDate]) reportedSessions[targetDate] = {};
+        if (!reportedSessions[targetDate][reportCat]) reportedSessions[targetDate][reportCat] = [];
+        reportedSessions[targetDate][reportCat].push(rawUrlToStore);
+        await chrome.storage.local.set({ reported_sessions: reportedSessions });
+      } else {
+        if (!reportedUrls[reportCat]) reportedUrls[reportCat] = [];
+        reportedUrls[reportCat].push(rawUrlToStore);
+        await chrome.storage.local.set({ reported_urls: reportedUrls });
+      }
+
+      chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
       return { added: 1, skipped: 0, existingDate: null };
     }
 
@@ -246,21 +278,25 @@ async function handleMessage(message) {
       const duplicates = [];
 
       for (const url of urls) {
-        const targetUrl = normalizeDomain(extractDomain(url) || cleanUrl(url));
-        const dupDate = findUrlDuplicateDate(targetUrl, reportedUrls, reportedSessions);
+        const cleanDom = normalizeDomain(extractDomain(url) || cleanUrl(url));
+        const dupDate = findUrlDuplicateDate(cleanDom, reportedUrls, reportedSessions);
         if (dupDate) {
           skipped++;
-          duplicates.push({ url: targetUrl, date: dupDate === 'today' ? today : dupDate });
-        } else if (!reportedUrls[category].includes(targetUrl)) {
-          reportedUrls[category].push(targetUrl);
-          added++;
+          duplicates.push({ url, date: dupDate === 'today' ? today : dupDate });
         } else {
-          skipped++;
+          const rawUrlToStore = preserveFullUrl(url);
+          if (!reportedUrls[category].includes(rawUrlToStore)) {
+            reportedUrls[category].push(rawUrlToStore);
+            added++;
+          } else {
+            skipped++;
+          }
         }
       }
 
       if (added > 0) {
         await chrome.storage.local.set({ reported_urls: reportedUrls });
+        chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
       }
       return { added, skipped, duplicates };
     }
@@ -284,19 +320,21 @@ async function handleMessage(message) {
       if (delDate === currentDate) {
         const reportedUrls = data.reported_urls || {};
         if (reportedUrls[delCat]) {
-          reportedUrls[delCat] = reportedUrls[delCat].filter(u => u !== delUrl);
+          reportedUrls[delCat] = reportedUrls[delCat].filter(u => u !== delUrl && cleanUrl(u) !== cleanUrl(delUrl));
           if (reportedUrls[delCat].length === 0) delete reportedUrls[delCat];
         }
         await chrome.storage.local.set({ reported_urls: reportedUrls });
       } else {
         const sessions = data.reported_sessions || {};
         if (sessions[delDate]?.[delCat]) {
-          sessions[delDate][delCat] = sessions[delDate][delCat].filter(u => u !== delUrl);
+          sessions[delDate][delCat] = sessions[delDate][delCat].filter(u => u !== delUrl && cleanUrl(u) !== cleanUrl(delUrl));
           if (sessions[delDate][delCat].length === 0) delete sessions[delDate][delCat];
           if (Object.keys(sessions[delDate]).length === 0) delete sessions[delDate];
         }
         await chrome.storage.local.set({ reported_sessions: sessions });
       }
+
+      chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
       return { success: true };
     }
 
@@ -313,41 +351,47 @@ async function handleMessage(message) {
         delete sessions[ds];
         await chrome.storage.local.set({ reported_sessions: sessions });
       }
+
+      chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
       return { success: true };
     }
 
     case 'addToSession': {
-      const { date: addDate, category: addCat, url: addUrl } = message;
+      const { date: addDate, category: addCat, url: addUrl, force = false } = message;
       if (!addDate || !addCat || !addUrl) return { added: 0, skipped: 0, existingDate: null };
 
-      const targetUrl = cleanUrl(addUrl);
       const data = await chrome.storage.local.get(['reported_urls', 'reported_sessions', 'reported_date']);
       const currentDate = data.reported_date || getTodayDate();
       const reportedUrls = data.reported_urls || {};
       const reportedSessions = data.reported_sessions || {};
 
-      const existingDate = findUrlDuplicateDate(targetUrl, reportedUrls, reportedSessions);
-      if (existingDate) {
+      const cleanDom = normalizeDomain(extractDomain(addUrl) || cleanUrl(addUrl));
+      const existingDate = findUrlDuplicateDate(cleanDom, reportedUrls, reportedSessions);
+      if (existingDate && !force) {
         return { added: 0, skipped: 1, existingDate: existingDate === 'today' ? currentDate : existingDate };
       }
 
+      const rawUrlToStore = preserveFullUrl(addUrl);
+
       if (addDate === currentDate) {
         if (!reportedUrls[addCat]) reportedUrls[addCat] = [];
-        reportedUrls[addCat].push(targetUrl);
+        reportedUrls[addCat].push(rawUrlToStore);
         await chrome.storage.local.set({ reported_urls: reportedUrls });
       } else {
         if (!reportedSessions[addDate]) reportedSessions[addDate] = {};
         if (!reportedSessions[addDate][addCat]) reportedSessions[addDate][addCat] = [];
-        reportedSessions[addDate][addCat].push(targetUrl);
+        reportedSessions[addDate][addCat].push(rawUrlToStore);
         await chrome.storage.local.set({ reported_sessions: reportedSessions });
       }
+
+      chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
       return { added: 1, skipped: 0, existingDate: null };
     }
 
     case 'resolveDownloadPrompt': {
       const { downloadId, isSimulation, choice } = message;
       if (isSimulation) {
-        console.log(`[ULTRA Phish Catcher Debug] Download simulation choice: ${choice}`);
+        console.log(`[PhishTackle Debug] Download simulation choice: ${choice}`);
       } else if (downloadId) {
         try {
           const numId = Number(downloadId);
@@ -382,7 +426,7 @@ async function handleMessage(message) {
             await chrome.downloads.cancel(numId);
           }
         } catch (e) {
-          console.warn('[ULTRA Phish Catcher] Error resolving download action:', e);
+          console.warn('[PhishTackle] Error resolving download action:', e);
         }
       }
       return { success: true };
@@ -508,7 +552,7 @@ async function checkDomain(domain, tabId = -1, isHttps = true) {
 async function resolveIpAddress(domain) {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const timeoutId = setTimeout(() => controller.abort(), 800);
     const url = `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`;
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
@@ -523,20 +567,28 @@ async function resolveIpAddress(domain) {
   return null;
 }
 
-/** Fetches IP details (ISP, Organization, RDNS) from ipwho.is with 2.0s timeout. */
+const ipInfoMemoryMap = new Map();
+
+/** Fetches IP details (ISP, Organization, RDNS) from ipwho.is with 800ms timeout. */
 async function getIpInfo(ip) {
   if (!ip) return null;
+  const memData = ipInfoMemoryMap.get(ip);
+  if (memData && (Date.now() - memData.timestamp < 86400000)) {
+    return memData;
+  }
+
   const storageKey = `ipinfo_${ip}`;
   try {
     const cached = await chrome.storage.local.get(storageKey);
-    if (cached[storageKey] && (Date.now() - cached[storageKey].timestamp < 24 * 60 * 60 * 1000)) {
+    if (cached[storageKey] && (Date.now() - cached[storageKey].timestamp < 86400000)) {
+      ipInfoMemoryMap.set(ip, cached[storageKey]);
       return cached[storageKey];
     }
   } catch { }
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 800);
     const res = await fetch(`https://ipwho.is/${ip}`, { signal: controller.signal });
     clearTimeout(timeoutId);
 
@@ -552,6 +604,7 @@ async function getIpInfo(ip) {
           isWaf: false,
           timestamp: Date.now()
         };
+        ipInfoMemoryMap.set(ip, data);
         try {
           await chrome.storage.local.set({ [storageKey]: data });
         } catch { }
@@ -562,24 +615,201 @@ async function getIpInfo(ip) {
   return null;
 }
 
-/** Retrieves stored native Firefox SSL security information for a tab. */
+function parseDistinguishedName(dnString) {
+  if (!dnString || typeof dnString !== 'string') return {};
+  const result = {};
+  const parts = dnString.split(/,\s*(?=[A-Za-z]+=)/);
+  for (const part of parts) {
+    const eqIdx = part.indexOf('=');
+    if (eqIdx !== -1) {
+      const key = part.substring(0, eqIdx).trim().toUpperCase();
+      const val = part.substring(eqIdx + 1).trim().replace(/^["']|["']$/g, '');
+      if (!result[key]) {
+        result[key] = val;
+      }
+    }
+  }
+  return result;
+}
+
+function extractCleanIssuer(certIssuer) {
+  if (!certIssuer) return 'Unknown Issuer';
+  const dn = parseDistinguishedName(certIssuer);
+  if (dn.O) {
+    if (dn.CN && !dn.O.toLowerCase().includes(dn.CN.toLowerCase())) {
+      return `${dn.O} (${dn.CN})`;
+    }
+    return dn.O;
+  }
+  if (dn.CN) return dn.CN;
+  return certIssuer;
+}
+
+function extractCleanSubject(certSubject) {
+  if (!certSubject) return null;
+  const dn = parseDistinguishedName(certSubject);
+  if (dn.O) return dn.O;
+  if (dn.CN) return dn.CN;
+  return null;
+}
+
+function processSecurityInfo(domain, securityInfo) {
+  if (!securityInfo || securityInfo.state !== 'secure') {
+    return {
+      domain,
+      secure: false,
+      state: securityInfo?.state || 'insecure',
+      source: 'firefox_security_info',
+      timestamp: Date.now()
+    };
+  }
+
+  const cert = securityInfo.certificates?.[0];
+  const rawIssuer = cert?.issuer || '';
+  const rawSubject = cert?.subject || '';
+
+  const issuer = extractCleanIssuer(rawIssuer);
+  const subject = extractCleanSubject(rawSubject);
+
+  const startMs = cert?.validity?.start || null;
+  const endMs = cert?.validity?.end || null;
+  let daysRemaining = null;
+  if (endMs) {
+    daysRemaining = Math.ceil((endMs - Date.now()) / (1000 * 60 * 60 * 24));
+  }
+
+  return {
+    domain,
+    secure: true,
+    state: securityInfo.state,
+    issuer,
+    rawIssuer,
+    subject,
+    rawSubject,
+    validFrom: startMs,
+    validTo: endMs,
+    daysRemaining,
+    protocolVersion: securityInfo.protocolVersion || null,
+    cipherSuite: securityInfo.cipherSuite || null,
+    hsts: securityInfo.hsts || false,
+    source: 'firefox_security_info',
+    timestamp: Date.now()
+  };
+}
+
+const pendingSslFetches = new Set();
+
+async function saveSslData(domain, sslData, tabId) {
+  if (!domain || !sslData) return;
+  domainSslMemoryMap.set(domain, sslData);
+
+  if (tabId && tabId !== -1) {
+    await saveSessionData(`tab_ssl_${tabId}`, sslData);
+  }
+  try {
+    await chrome.storage.local.set({ [`domain_ssl_${domain}`]: sslData });
+  } catch { }
+}
+
+async function getDomainSslFromStorage(domain) {
+  const memData = domainSslMemoryMap.get(domain);
+  if (memData && (Date.now() - memData.timestamp < 86400000)) {
+    return memData;
+  }
+
+  try {
+    const key = `domain_ssl_${domain}`;
+    const stored = await chrome.storage.local.get([key]);
+    const sslData = stored[key];
+    if (sslData && (Date.now() - sslData.timestamp < 86400000)) {
+      domainSslMemoryMap.set(domain, sslData);
+      return sslData;
+    }
+  } catch { }
+  return null;
+}
+
+async function fetchSslForDomain(domain, tabId) {
+  if (!domain || pendingSslFetches.has(domain)) return null;
+  pendingSslFetches.add(domain);
+  console.log(`[PhishTackle SSL] 🌐 Initiating background SSL fetch for domain: ${domain}`);
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    try {
+      await fetch(`https://${domain}`, {
+        method: 'GET',
+        cache: 'no-store',
+        mode: 'no-cors',
+        signal: controller.signal
+      });
+    } catch { }
+
+    clearTimeout(timeoutId);
+
+    const result = await getDomainSslFromStorage(domain);
+
+    if (result && result.secure) {
+      console.log(`[PhishTackle SSL] Background SSL fetch succeeded for ${domain}:`, result.issuer);
+      if (tabId && tabId !== -1) {
+        await saveSessionData(`tab_ssl_${tabId}`, result);
+      }
+      chrome.runtime.sendMessage({
+        action: 'sslDetailsUpdated',
+        domain,
+        tabId,
+        sslDetails: result
+      }).catch(() => { });
+    } else {
+      console.warn(`[PhishTackle SSL] Background SSL fetch completed for ${domain} but no cert info was stored.`);
+    }
+
+    return result;
+  } catch (err) {
+    console.error(`[PhishTackle SSL Error] Exception during fetchSslForDomain for ${domain}:`, err);
+  } finally {
+    pendingSslFetches.delete(domain);
+  }
+
+  return await getDomainSslFromStorage(domain);
+}
+
+/** Retrieves stored native Firefox SSL security information for a tab or domain. */
 async function getSslInfo(domain, tabId, isHttps) {
   if (!isHttps) {
     return { secure: false };
   }
 
+  // 1. Try Tab Session Data first
   if (tabId && tabId !== -1) {
     const sessionData = await getSessionData(`tab_ssl_${tabId}`);
-    if (sessionData?.domain === domain) {
+    if (sessionData?.domain === domain && sessionData?.secure) {
+      console.log(`[PhishTackle SSL] 🎯 Tab session cache hit for ${domain} (issuer: ${sessionData.issuer})`);
       return sessionData;
     }
   }
+
+  // 2. Try Domain Persistent Cache
+  const domainSsl = await getDomainSslFromStorage(domain);
+  if (domainSsl && domainSsl.secure) {
+    console.log(`[PhishTackle SSL] 🎯 Domain memory/storage cache hit for ${domain} (issuer: ${domainSsl.issuer})`);
+    if (tabId && tabId !== -1) {
+      saveSessionData(`tab_ssl_${tabId}`, domainSsl);
+    }
+    return domainSsl;
+  }
+
+  // 3. Fallback: Trigger background fetch asynchronously and return loading status immediately
+  console.log(`[PhishTackle SSL] ⌛ No SSL info cached for ${domain}. Triggering background fetch...`);
+  fetchSslForDomain(domain, tabId).catch(() => { });
 
   return {
     secure: true,
     issuer: null,
     validFrom: null,
-    source: 'unavailable'
+    source: 'loading'
   };
 }
 
@@ -587,13 +817,15 @@ async function getSslInfo(domain, tabId, isHttps) {
 // Data Fetching & Cache Management
 // ==========================================
 
-/** Ensures domain list is loaded in memory and triggers background refresh if stale. */
+/** Ensures domain list is loaded in memory asynchronously without blocking request handlers. */
 async function ensureListLoaded() {
   if (!isListLoaded || domainMap.size === 0) {
     const restored = await restoreFromCache();
     if (!restored || domainMap.size === 0) {
-      console.log('[ULTRA Phish Catcher] Domain map is empty — fetching domain list...');
-      await loadDomainList();
+      if (!currentRefreshPromise) {
+        console.log('[PhishTackle] Domain map is empty — fetching domain list in background...');
+        loadDomainList().catch(e => console.warn('[PhishTackle] Background load error:', e.message));
+      }
       return;
     }
   }
@@ -607,11 +839,11 @@ async function ensureListLoaded() {
     const isStale = !meta?.lastUpdated || (Date.now() - new Date(meta.lastUpdated).getTime() >= maxAgeMs);
 
     if (isStale) {
-      console.log(`[ULTRA Phish Catcher] Domain list cache is stale (>= ${refreshHours}h) — refreshing in background...`);
-      loadDomainList().catch(e => console.warn('[ULTRA Phish Catcher] Background refresh error:', e.message));
+      console.log(`[PhishTackle] Domain list cache is stale (>= ${refreshHours}h) — refreshing in background...`);
+      loadDomainList().catch(e => console.warn('[PhishTackle] Background refresh error:', e.message));
     }
   } catch (e) {
-    console.warn('[ULTRA Phish Catcher] Cache freshness check error:', e.message);
+    console.warn('[PhishTackle] Cache freshness check error:', e.message);
   }
 }
 
@@ -628,7 +860,7 @@ async function loadDomainList() {
 
   currentRefreshPromise = (async () => {
     try {
-      console.log('[ULTRA Phish Catcher] Fetching CERT.pl domain feed from hole.cert.pl...');
+      console.log('[PhishTackle] Fetching CERT.pl domain feed from hole.cert.pl...');
       const res = await fetch(DOMAINS_URL);
       if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
 
@@ -648,10 +880,10 @@ async function loadDomainList() {
 
       isListLoaded = true;
       totalDomains = domainMap.size;
-      console.log(`[ULTRA Phish Catcher] Successfully loaded ${domainMap.size} domains from hole.cert.pl.`);
+      console.log(`[PhishTackle] Successfully loaded ${domainMap.size} domains from hole.cert.pl.`);
       return true;
     } catch (e) {
-      console.warn('[ULTRA Phish Catcher] Network error during CERT.pl list fetch — retaining cached list:', e.message);
+      console.warn('[PhishTackle] Network error during CERT.pl list fetch — retaining cached list:', e.message);
       const restored = await restoreFromCache();
       const meta = (await getMeta()) || {};
       meta.isOnline = false;
@@ -718,11 +950,11 @@ async function restoreFromCache() {
       const meta = data[STORAGE_KEY_META];
       totalDomains = domainMap.size;
       isListLoaded = true;
-      console.log(`[ULTRA Phish Catcher] Restored ${domainMap.size} domains from local storage cache (Updated: ${meta?.lastUpdated || 'Unknown'}).`);
+      console.log(`[PhishTackle] Restored ${domainMap.size} domains from local storage cache (Updated: ${meta?.lastUpdated || 'Unknown'}).`);
       return true;
     }
   } catch (e) {
-    console.error('[ULTRA Phish Catcher] Cache restoration failed:', e);
+    console.error('[PhishTackle] Cache restoration failed:', e);
   }
   return false;
 }
@@ -733,29 +965,42 @@ async function restoreFromCache() {
 
 async function getSettings() {
   const res = await chrome.storage.local.get([STORAGE_KEY_SETTINGS, 'reported_categories']);
-  const settings = res[STORAGE_KEY_SETTINGS] || {
-    exclusions: [],
-    excludedIps: [],
-    refreshHours: 1,
-    googleSearchCheckboxes: true,
-    facebookPreventRefresh: true,
-    downloadProtection: true,
-    clipboardProtection: true
-  };
+  const storedSettings = res[STORAGE_KEY_SETTINGS] || {};
 
-  let categories = res.reported_categories;
-  if (!Array.isArray(categories) || categories.length === 0) {
-    try {
-      const response = await fetch(chrome.runtime.getURL('config.yaml'));
-      const text = await response.text();
-      const config = parseYamlConfig(text);
-      categories = config.categories || ['other'];
-    } catch {
-      categories = ['other'];
-    }
+  let defaultConfig = { exclusions: [], excludedIps: [], categories: ['other'] };
+  try {
+    const response = await fetch(chrome.runtime.getURL('config.yaml'));
+    const text = await response.text();
+    const config = parseYamlConfig(text);
+    if (config.exclusions) defaultConfig.exclusions = config.exclusions;
+    if (config.excludedIps) defaultConfig.excludedIps = config.excludedIps;
+    if (config.categories) defaultConfig.categories = config.categories;
+  } catch (e) {
+    console.warn('[PhishTackle] Error loading config.yaml:', e);
   }
 
-  return { ...settings, categories };
+  const exclusions = (Array.isArray(storedSettings.exclusions) && storedSettings.exclusions.length > 0)
+    ? storedSettings.exclusions
+    : defaultConfig.exclusions;
+
+  const excludedIps = (Array.isArray(storedSettings.excludedIps) && storedSettings.excludedIps.length > 0)
+    ? storedSettings.excludedIps
+    : defaultConfig.excludedIps;
+
+  const categories = (Array.isArray(res.reported_categories) && res.reported_categories.length > 0)
+    ? res.reported_categories
+    : defaultConfig.categories;
+
+  return {
+    exclusions,
+    excludedIps,
+    categories,
+    refreshHours: storedSettings.refreshHours || 1,
+    googleSearchCheckboxes: storedSettings.googleSearchCheckboxes !== false,
+    facebookPreventRefresh: storedSettings.facebookPreventRefresh !== false,
+    downloadProtection: storedSettings.downloadProtection !== false,
+    clipboardProtection: storedSettings.clipboardProtection !== false
+  };
 }
 
 async function saveSettings(settings) {
@@ -814,11 +1059,16 @@ async function removeSessionData(key) {
 async function clearSslCache() {
   try {
     if (chrome.storage?.session) {
-      const all = await chrome.storage.session.get(null);
-      const keysToRemove = Object.keys(all).filter(k => k.startsWith('tab_ssl_') || k.startsWith('tab_ip_'));
-      if (keysToRemove.length > 0) {
-        await chrome.storage.session.remove(keysToRemove);
+      const allSession = await chrome.storage.session.get(null);
+      const sessionKeys = Object.keys(allSession).filter(k => k.startsWith('tab_ssl_') || k.startsWith('tab_ip_'));
+      if (sessionKeys.length > 0) {
+        await chrome.storage.session.remove(sessionKeys);
       }
+    }
+    const allLocal = await chrome.storage.local.get(null);
+    const localKeys = Object.keys(allLocal).filter(k => k.startsWith('domain_ssl_'));
+    if (localKeys.length > 0) {
+      await chrome.storage.local.remove(localKeys);
     }
   } catch { }
   fallbackSessionMap.clear();
@@ -894,19 +1144,37 @@ async function maybeRolloverDay() {
 }
 
 function findUrlDuplicateDate(targetCleanUrl, reportedUrls, reportedSessions) {
-  const targetDomain = extractDomain(targetCleanUrl) || cleanUrl(targetCleanUrl);
-  for (const list of Object.values(reportedUrls)) {
-    if (Array.isArray(list) && list.some(u => (extractDomain(u) || cleanUrl(u)) === targetDomain)) {
-      return 'today';
-    }
-  }
-  for (const [date, session] of Object.entries(reportedSessions)) {
-    for (const list of Object.values(session)) {
-      if (Array.isArray(list) && list.some(u => (extractDomain(u) || cleanUrl(u)) === targetDomain)) {
-        return date;
+  if (!targetCleanUrl) return null;
+  const rawTarget = extractDomain(targetCleanUrl) || cleanUrl(targetCleanUrl);
+  const targetDomain = normalizeDomain(rawTarget);
+  if (!targetDomain) return null;
+
+  for (const list of Object.values(reportedUrls || {})) {
+    if (Array.isArray(list)) {
+      for (const entry of list) {
+        const rawEntry = extractDomain(entry) || cleanUrl(entry);
+        const entryDomain = normalizeDomain(rawEntry);
+        if (entryDomain && entryDomain === targetDomain) {
+          return 'today';
+        }
       }
     }
   }
+
+  for (const [date, session] of Object.entries(reportedSessions || {})) {
+    for (const list of Object.values(session || {})) {
+      if (Array.isArray(list)) {
+        for (const entry of list) {
+          const rawEntry = extractDomain(entry) || cleanUrl(entry);
+          const entryDomain = normalizeDomain(rawEntry);
+          if (entryDomain && entryDomain === targetDomain) {
+            return date;
+          }
+        }
+      }
+    }
+  }
+
   return null;
 }
 
@@ -950,7 +1218,7 @@ async function showDownloadPrompt({ downloadId, domain, filename, extension, siz
       pendingDownloads.set(String(win.id), String(downloadId));
     }
   } catch (e) {
-    console.error('[ULTRA Phish Catcher] Error opening download prompt window:', e);
+    console.error('[PhishTackle] Error opening download prompt window:', e);
     if (downloadId && !isSimulation) {
       try { await chrome.downloads.resume(Number(downloadId)); } catch { }
     }
@@ -961,7 +1229,7 @@ async function showDownloadPrompt({ downloadId, domain, filename, extension, siz
     chrome.notifications?.create(notifId, {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icons/icon-48.png'),
-      title: '⚠️ Download Intercepted',
+      title: 'Download Intercepted',
       message: `Domain: ${domain}\nFile: ${filename} (.${extension})\nSize: ${sizeStr}`,
       priority: 2
     });
@@ -989,7 +1257,7 @@ if (chrome.downloads?.onCreated) {
     try {
       await chrome.downloads.pause(item.id);
     } catch (e) {
-      console.warn('[ULTRA Phish Catcher] Could not pause download immediately:', e.message);
+      console.warn('[PhishTackle] Could not pause download immediately:', e.message);
     }
 
     const domain = extractDomain(item.finalUrl || item.url || item.referrer || '');
@@ -1052,7 +1320,7 @@ async function showClipboardPrompt({ domain, payload, method, trigger }) {
     }
   } catch (e) {
     activeClipboardWindows.delete(targetDomain);
-    console.error('[ULTRA Phish Catcher] Error opening clipboard prompt window:', e);
+    console.error('[PhishTackle] Error opening clipboard prompt window:', e);
   }
 }
 

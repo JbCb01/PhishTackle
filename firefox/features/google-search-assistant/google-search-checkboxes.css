@@ -1,4 +1,4 @@
-.ultra-wrap {
+.phishtackle-wrap {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -6,14 +6,14 @@
   vertical-align: middle;
 }
 
-.ultra-cb {
+.phishtackle-cb {
   width: 15px;
   height: 15px;
   cursor: pointer;
   accent-color: #5b8af5;
 }
 
-.ultra-badge {
+.phishtackle-badge {
   font-size: 9px;
   font-weight: 700;
   padding: 1px 5px;
@@ -24,19 +24,19 @@
   font-family: system-ui, -apple-system, sans-serif;
 }
 
-.ultra-badge--cert {
+.phishtackle-badge--cert {
   background: rgba(248, 113, 113, 0.2);
   color: #f87171;
   border: 1px solid rgba(248, 113, 113, 0.4);
 }
 
-.ultra-badge--local {
+.phishtackle-badge--local {
   background: rgba(251, 191, 36, 0.2);
   color: #fbbf24;
   border: 1px solid rgba(251, 191, 36, 0.4);
 }
 
-#ultra-action-bar {
+#phishtackle-action-bar {
   position: fixed;
   bottom: 20px;
   left: 50%;
@@ -53,27 +53,27 @@
   font-family: system-ui, -apple-system, sans-serif;
   font-size: 13px;
   color: #e8eaf0;
-  animation: ultraBarSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: phishtackleBarSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#ultra-action-bar.ultra-bar--hiding {
-  animation: ultraBarSlideDown 0.2s ease forwards;
+#phishtackle-action-bar.phishtackle-bar--hiding {
+  animation: phishtackleBarSlideDown 0.2s ease forwards;
 }
 
-.ultra-bar__icon {
+.phishtackle-bar__icon {
   font-size: 16px;
 }
 
-.ultra-bar__count {
+.phishtackle-bar__count {
   font-weight: 600;
   color: #e8eaf0;
 }
 
-.ultra-bar__count span {
+.phishtackle-bar__count span {
   color: #5b8af5;
 }
 
-.ultra-bar__select {
+.phishtackle-bar__select {
   padding: 5px 10px;
   font-size: 12px;
   color: #e8eaf0;
@@ -84,7 +84,7 @@
   cursor: pointer;
 }
 
-.ultra-bar__btn {
+.phishtackle-bar__btn {
   padding: 6px 14px;
   font-size: 12px;
   font-weight: 600;
@@ -96,16 +96,16 @@
   transition: all 150ms ease;
 }
 
-.ultra-bar__btn:hover {
+.phishtackle-bar__btn:hover {
   background: #7ba2ff;
 }
 
-.ultra-bar__btn:disabled {
+.phishtackle-bar__btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.ultra-bar__dismiss {
+.phishtackle-bar__dismiss {
   padding: 6px 10px;
   font-size: 12px;
   color: #8b90a5;
@@ -115,33 +115,33 @@
   transition: color 150ms ease;
 }
 
-.ultra-bar__dismiss:hover {
+.phishtackle-bar__dismiss:hover {
   color: #e8eaf0;
 }
 
-.ultra-bar__feedback {
+.phishtackle-bar__feedback {
   font-size: 12px;
   font-weight: 600;
   padding: 4px 8px;
   border-radius: 4px;
 }
 
-.ultra-bar__feedback--success {
+.phishtackle-bar__feedback--success {
   color: #34d399;
   background: rgba(52, 211, 153, 0.12);
 }
 
-.ultra-bar__feedback--error {
+.phishtackle-bar__feedback--error {
   color: #f87171;
   background: rgba(248, 113, 113, 0.12);
 }
 
-@keyframes ultraBarSlideUp {
+@keyframes phishtackleBarSlideUp {
   from { opacity: 0; transform: translate(-50%, 16px); }
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
-@keyframes ultraBarSlideDown {
+@keyframes phishtackleBarSlideDown {
   from { opacity: 1; transform: translate(-50%, 0); }
   to   { opacity: 0; transform: translate(-50%, 16px); }
 }

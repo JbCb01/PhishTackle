@@ -6,8 +6,8 @@
 (function () {
   'use strict';
 
-  if (window.__ultraClipboardBridgeInjected) return;
-  window.__ultraClipboardBridgeInjected = true;
+  if (window.__phishtackleClipboardBridgeInjected) return;
+  window.__phishtackleClipboardBridgeInjected = true;
 
   // Inject main-world interceptor script into webpage context
   try {
@@ -16,13 +16,13 @@
     (document.head || document.documentElement).appendChild(script);
     script.onload = () => script.remove();
   } catch (e) {
-    console.warn('[ULTRA Phish Catcher] Main world injection error:', e);
+    console.warn('[PhishTackle] Main world injection error:', e);
   }
 
   // Relay messages from main world to background service worker
   window.addEventListener('message', (event) => {
     if (event.source !== window || !event.data) return;
-    if (event.data.type === 'ULTRA_CLIPBOARD_ATTEMPT') {
+    if (event.data.type === 'PHISHTACKLE_CLIPBOARD_ATTEMPT' || event.data.type === 'ULTRA_CLIPBOARD_ATTEMPT') {
       try {
         chrome.runtime.sendMessage({
           action: 'clipboardAttempt',

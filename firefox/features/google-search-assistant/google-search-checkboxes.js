@@ -5,8 +5,8 @@
 (function () {
   'use strict';
 
-  if (window.__ultraCheckboxesInit) return;
-  window.__ultraCheckboxesInit = true;
+  if (window.__phishtackleCheckboxesInit) return;
+  window.__phishtackleCheckboxesInit = true;
 
   let isEnabled = false;
   let categories = [];
@@ -26,20 +26,20 @@
     const status = getDomainStatus(domain);
 
     const wrap = document.createElement('span');
-    wrap.className = 'ultra-wrap';
+    wrap.className = 'phishtackle-wrap';
     wrap.dataset.domain = domain;
     wrap.dataset.url = resultUrl;
     wrap.addEventListener('click', (e) => e.stopPropagation());
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
-    cb.className = 'ultra-cb';
+    cb.className = 'phishtackle-cb';
     cb.title = `Check to add ${domain} to report list`;
     cb.dataset.domain = domain;
     cb.dataset.url = resultUrl;
 
-    if (status.onCertList) cb.classList.add('ultra-cb--cert');
-    else if (status.onLocalList) cb.classList.add('ultra-cb--local');
+    if (status.onCertList) cb.classList.add('phishtackle-cb--cert');
+    else if (status.onLocalList) cb.classList.add('phishtackle-cb--local');
 
     cb.addEventListener('change', updateActionBar);
 
@@ -50,23 +50,23 @@
 
   /** Appends status badge to checkbox wrapper. */
   function appendBadge(wrap, status) {
-    wrap.querySelectorAll('.ultra-badge').forEach(b => b.remove());
+    wrap.querySelectorAll('.phishtackle-badge').forEach(b => b.remove());
 
     let badge = null;
     if (status.onCertList) {
       badge = document.createElement('span');
-      badge.className = 'ultra-badge ultra-badge--cert';
+      badge.className = 'phishtackle-badge phishtackle-badge--cert';
       badge.textContent = 'BLOCKED';
       badge.title = 'Domain is on the blocklist';
     } else if (status.onLocalList) {
       badge = document.createElement('span');
-      badge.className = 'ultra-badge ultra-badge--local';
+      badge.className = 'phishtackle-badge phishtackle-badge--local';
       badge.textContent = 'on list';
       badge.title = 'Domain is already in your local report list';
     }
 
     if (badge) {
-      const cb = wrap.querySelector('.ultra-cb');
+      const cb = wrap.querySelector('.phishtackle-cb');
       if (cb) wrap.insertBefore(badge, cb);
       else wrap.appendChild(badge);
     }
@@ -74,16 +74,16 @@
 
   /** Refreshes classes and badges for all injected search checkboxes. */
   function refreshAllCheckboxStatuses() {
-    document.querySelectorAll('.ultra-wrap').forEach(wrap => {
+    document.querySelectorAll('.phishtackle-wrap').forEach(wrap => {
       const domain = wrap.dataset.domain;
       if (!domain) return;
       const status = getDomainStatus(domain);
-      const cb = wrap.querySelector('.ultra-cb');
+      const cb = wrap.querySelector('.phishtackle-cb');
       if (!cb) return;
 
-      cb.classList.remove('ultra-cb--cert', 'ultra-cb--local');
-      if (status.onCertList) cb.classList.add('ultra-cb--cert');
-      else if (status.onLocalList) cb.classList.add('ultra-cb--local');
+      cb.classList.remove('phishtackle-cb--cert', 'phishtackle-cb--local');
+      if (status.onCertList) cb.classList.add('phishtackle-cb--cert');
+      else if (status.onLocalList) cb.classList.add('phishtackle-cb--local');
 
       appendBadge(wrap, status);
     });
@@ -92,8 +92,8 @@
   /** Injects checkbox wrapper into Google search result H3 element. */
   function injectIntoH3(h3) {
     const anchor = h3.closest('a[href]');
-    if (!anchor || anchor.dataset.ultraWrapped) return;
-    anchor.dataset.ultraWrapped = '1';
+    if (!anchor || anchor.dataset.phishtackleWrapped) return;
+    anchor.dataset.phishtackleWrapped = '1';
 
     const href = anchor.href;
     if (!href || href.startsWith('javascript:') || href === '#') return;
@@ -120,7 +120,7 @@
     const domainsToCheck = [];
     const seen = new Set();
 
-    rso.querySelectorAll('a[data-ultra-wrapped]').forEach(anchor => {
+    rso.querySelectorAll('a[data-phishtackle-wrapped], a[data-ultra-wrapped]').forEach(anchor => {
       const url = resolveGoogleUrl(anchor.href);
       const domain = extractCleanDomain(url);
       if (domain && !seen.has(domain) && !isGoogleDomain(domain)) {
@@ -149,7 +149,7 @@
 
       refreshAllCheckboxStatuses();
     } catch (e) {
-      console.warn('[ULTRA Phish Catcher] Error querying domain statuses:', e.message);
+      console.warn('[PhishTackle] Error querying domain statuses:', e.message);
     }
   }
 
@@ -161,7 +161,7 @@
   function getCheckedDomains() {
     const seen = new Set();
     const checked = [];
-    document.querySelectorAll('.ultra-cb:checked').forEach(cb => {
+    document.querySelectorAll('.phishtackle-cb:checked').forEach(cb => {
       const { domain, url } = cb.dataset;
       if (domain && !seen.has(domain)) {
         seen.add(domain);
@@ -176,25 +176,25 @@
     if (actionBar) return;
 
     actionBar = document.createElement('div');
-    actionBar.id = 'ultra-action-bar';
+    actionBar.id = 'phishtackle-action-bar';
 
     const catOptions = categories
       .map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`)
       .join('');
 
     actionBar.innerHTML = `
-      <span class="ultra-bar__icon">🛡️</span>
-      <span class="ultra-bar__count">Selected: <span id="ultra-bar-count-num">0</span> domains</span>
-      <select class="ultra-bar__select" id="ultra-bar-category">${catOptions}</select>
-      <button class="ultra-bar__btn" id="ultra-bar-add">Add to list</button>
-      <button class="ultra-bar__dismiss" id="ultra-bar-dismiss">✕ Deselect</button>
+      <span class="phishtackle-bar__title">PhishTackle</span>
+      <span class="phishtackle-bar__count">Selected: <span id="phishtackle-bar-count-num">0</span> domains</span>
+      <select class="phishtackle-bar__select" id="phishtackle-bar-category">${catOptions}</select>
+      <button class="phishtackle-bar__btn" id="phishtackle-bar-add">Add to list</button>
+      <button class="phishtackle-bar__dismiss" id="phishtackle-bar-dismiss">✕ Deselect</button>
     `;
 
     document.body.appendChild(actionBar);
 
-    document.getElementById('ultra-bar-add').addEventListener('click', handleAddToList);
-    document.getElementById('ultra-bar-dismiss').addEventListener('click', () => {
-      document.querySelectorAll('.ultra-cb').forEach(cb => { cb.checked = false; });
+    document.getElementById('phishtackle-bar-add').addEventListener('click', handleAddToList);
+    document.getElementById('phishtackle-bar-dismiss').addEventListener('click', () => {
+      document.querySelectorAll('.phishtackle-cb').forEach(cb => { cb.checked = false; });
       updateActionBar();
     });
   }
@@ -202,7 +202,7 @@
   /** Hides bottom action bar. */
   function hideActionBar() {
     if (!actionBar) return;
-    actionBar.classList.add('ultra-bar--hiding');
+    actionBar.classList.add('phishtackle-bar--hiding');
     setTimeout(() => {
       if (actionBar) {
         actionBar.remove();
@@ -219,7 +219,7 @@
       return;
     }
     if (!actionBar) showActionBar();
-    const el = document.getElementById('ultra-bar-count-num');
+    const el = document.getElementById('phishtackle-bar-count-num');
     if (el) el.textContent = checked.length;
   }
 
@@ -228,10 +228,10 @@
     const checked = getCheckedDomains();
     if (checked.length === 0) return;
 
-    const selectEl = document.getElementById('ultra-bar-category');
+    const selectEl = document.getElementById('phishtackle-bar-category');
     const category = selectEl?.value || categories[0] || 'other';
 
-    const addBtn = document.getElementById('ultra-bar-add');
+    const addBtn = document.getElementById('phishtackle-bar-add');
     if (addBtn) { addBtn.disabled = true; addBtn.textContent = 'Adding...'; }
 
     try {
@@ -259,12 +259,12 @@
             (response.skipped > 0 ? ` (${response.skipped} skipped — duplicates)` : '');
         showBarFeedback(msg, 'success');
 
-        document.querySelectorAll('.ultra-cb').forEach(cb => { cb.checked = false; });
+        document.querySelectorAll('.phishtackle-cb').forEach(cb => { cb.checked = false; });
         updateActionBar();
       }
     } catch (e) {
       showBarFeedback('✗ Add error', 'error');
-      console.error('[ULTRA Phish Catcher]', e);
+      console.error('[PhishTackle]', e);
     } finally {
       if (addBtn) { addBtn.disabled = false; addBtn.textContent = 'Add to list'; }
     }
@@ -273,11 +273,11 @@
   /** Displays feedback message in bottom action bar. */
   function showBarFeedback(text, type) {
     if (!actionBar) return;
-    actionBar.querySelectorAll('.ultra-bar__feedback').forEach(f => f.remove());
+    actionBar.querySelectorAll('.phishtackle-bar__feedback').forEach(f => f.remove());
     clearTimeout(feedbackTimeout);
 
     const fb = document.createElement('span');
-    fb.className = `ultra-bar__feedback ultra-bar__feedback--${type}`;
+    fb.className = `phishtackle-bar__feedback phishtackle-bar__feedback--${type}`;
     fb.textContent = text;
     actionBar.appendChild(fb);
 
@@ -373,7 +373,7 @@
       const rso = document.getElementById('rso') || document.getElementById('search') || document.body;
       observer.observe(rso, { childList: true, subtree: true });
     } catch (e) {
-      console.warn('[ULTRA Phish Catcher] Initialization error:', e.message);
+      console.warn('[PhishTackle] Initialization error:', e.message);
     }
   }
 

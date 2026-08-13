@@ -6,8 +6,8 @@
 (function () {
   'use strict';
 
-  if (window.__ultraClipboardInjected) return;
-  window.__ultraClipboardInjected = true;
+  if (window.__phishtackleClipboardInjected) return;
+  window.__phishtackleClipboardInjected = true;
 
   let lastUserGestureTime = 0;
 
@@ -34,11 +34,11 @@
       domain: window.location.hostname || window.location.host || 'Unknown domain',
       payload: String(textPayload || '').slice(0, 1000),
       method: method || 'navigator.clipboard.writeText',
-      trigger: '⚠️ Automatic / Unprompted'
+      trigger: 'Automatic / Unprompted'
     };
 
     window.postMessage({
-      type: 'ULTRA_CLIPBOARD_ATTEMPT',
+      type: 'PHISHTACKLE_CLIPBOARD_ATTEMPT',
       detail
     }, '*');
   }

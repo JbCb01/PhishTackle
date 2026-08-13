@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ULTRA Phish Catcher — Settings</title>
+  <title>PhishTackle — Settings</title>
   <link rel="stylesheet" href="settings.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
           <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-5.45 9-12V7l-9-5zm0 4a3 3 0 013 3c0 1.66-1.34 3-3 3s-3-1.34-3-3a3 3 0 013-3zm0 14.3c-2.5-1-4.71-3.13-5.63-5.8.68-.45 2.51-1.5 5.63-1.5 3.12 0 4.95 1.05 5.63 1.5-.92 2.67-3.13 4.8-5.63 5.8z" fill="currentColor"/>
         </svg>
         <div>
-          <h1 class="settings-header__title">ULTRA Phish Catcher</h1>
+          <h1 class="settings-header__title">PhishTackle</h1>
           <p class="settings-header__subtitle">Extension Settings</p>
         </div>
       </div>
@@ -117,7 +117,7 @@
           id="exclusions-textarea"
           class="settings-textarea"
           rows="5"
-          placeholder="Example rules:&#10;*.gov.com&#10;facebook.com&#10;*.google.com&#10;*.microsoft.com&#10;example.com"
+          placeholder="Example rules:&#10;*.gov.pl&#10;policja.pl&#10;zus.pl"
           spellcheck="false"
         ></textarea>
 
@@ -127,11 +127,6 @@
             <li><code>facebook.com</code> — excludes exactly this domain (and www.facebook.com)</li>
             <li><code>*.example.com</code> — excludes example.com and all subdomains (e.g. abc.example.com)</li>
           </ul>
-        </div>
-
-        <div id="exclusions-preview" class="settings-preview" hidden>
-          <div class="settings-preview__title">Rule preview:</div>
-          <div id="exclusions-preview-list" class="settings-preview__tags"></div>
         </div>
       </div>
     </section>
@@ -175,13 +170,39 @@
           id="categories-textarea"
           class="settings-textarea"
           rows="5"
-          placeholder="e.g.&#10;phishing&#10;malware&#10;scam&#10;suspicious&#10;other"
+          placeholder="e.g.&#10;Fałszywe Inwestycje&#10;Bankowe&#10;Polityczne&#10;Inne"
           spellcheck="false"
         ></textarea>
       </div>
     </section>
 
-    <!-- 4. CACHE STATUS AT THE END -->
+    <!-- 4. KEYBOARD SHORTCUTS -->
+    <section class="settings-section">
+      <div class="settings-section__header">
+        <h2 class="settings-section__title">Keyboard Shortcut</h2>
+        <p class="settings-section__desc">
+          Quickly toggle the PhishTackle popup window from anywhere in the browser.
+        </p>
+      </div>
+      <div class="settings-section__content">
+        <div class="settings-status">
+          <div class="settings-status__item">
+            <span class="settings-status__label">Current Popup Shortcut:</span>
+            <span id="shortcut-badge" class="settings-status__value" style="font-family: monospace; font-weight: bold; background: rgba(255,255,255,0.08); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.12);">Alt+Shift+A</span>
+          </div>
+        </div>
+        <div class="settings-help" style="margin-top: 12px;">
+          <div class="settings-help__title">How to customize in Firefox:</div>
+          <ul class="settings-help__list">
+            <li>Open Firefox Add-ons manager (<code>about:addons</code>)</li>
+            <li>Click the gear icon in the top-right corner and select <b>Manage Extension Shortcuts</b></li>
+            <li>Set your custom key combination for PhishTackle</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. CACHE STATUS AT THE END -->
     <section class="settings-section">
       <div class="settings-section__header">
         <h2 class="settings-section__title">Cache Status</h2>
@@ -207,7 +228,7 @@
       </div>
     </section>
 
-    <!-- 5. BOTTOM ACTIONS -->
+    <!-- 6. BOTTOM ACTIONS -->
     <div class="settings-actions">
       <div id="save-feedback" class="settings-feedback" hidden></div>
       <button id="btn-save" class="settings-btn settings-btn--primary">

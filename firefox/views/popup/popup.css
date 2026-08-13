@@ -165,27 +165,17 @@ body::-webkit-scrollbar-thumb:hover {
 .status-card {
   background: var(--bg-card);
   border-radius: var(--radius-md);
-  border: 1px solid transparent;
+  border: 1px solid var(--border-medium);
   padding: 14px 16px;
-  transition: all var(--transition-slow);
-  animation: fadeSlideIn 0.3s var(--transition-slow);
+  transition: background var(--transition-slow), border-color var(--transition-slow);
 }
 
-.status-card--safe {
-  border-color: var(--status-safe-border);
-  background: var(--status-safe-bg);
-  box-shadow: var(--shadow-glow-safe);
-}
-
-.status-card--danger {
-  border-color: var(--status-danger-border);
-  background: var(--status-danger-bg);
-  box-shadow: var(--shadow-glow-danger);
-}
-
+.status-card--safe,
+.status-card--danger,
 .status-card--excluded {
-  border-color: var(--status-excluded-border);
-  background: var(--status-excluded-bg);
+  border-color: var(--border-medium);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
 }
 
 .status-card__header {
@@ -200,21 +190,27 @@ body::-webkit-scrollbar-thumb:hover {
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+  background: var(--text-tertiary);
+  transition: background var(--transition-normal), box-shadow var(--transition-normal);
 }
 
-.status-card--safe .status-card__indicator {
+.status-card__indicator--checking,
+.status-card__indicator--loading {
+  background: var(--text-tertiary);
+  animation: pulse-neutral 1.5s ease-in-out infinite;
+}
+
+.status-card__indicator--safe {
   background: var(--status-safe);
   box-shadow: 0 0 8px var(--status-safe-glow);
-  animation: pulse-safe 2s ease-in-out infinite;
 }
 
-.status-card--danger .status-card__indicator {
+.status-card__indicator--danger {
   background: var(--status-danger);
   box-shadow: 0 0 8px var(--status-danger-glow);
-  animation: pulse-danger 1s ease-in-out infinite;
 }
 
-.status-card--excluded .status-card__indicator {
+.status-card__indicator--excluded {
   background: var(--status-excluded);
 }
 
@@ -230,14 +226,6 @@ body::-webkit-scrollbar-thumb:hover {
   font-size: 12px;
   color: var(--text-secondary);
   margin-top: 2px;
-}
-
-.status-card--danger .status-card__message {
-  color: var(--status-danger);
-}
-
-.status-card--safe .status-card__message {
-  color: var(--status-safe);
 }
 
 .status-card__details {
@@ -530,6 +518,23 @@ body::-webkit-scrollbar-thumb:hover {
 
 .btn-report-add:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.btn-report-add--again {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+.btn-report-add--again:hover:not(:disabled) {
+  border-color: #fbbf24;
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+}
+
+.btn-report-add--success {
+  border-color: var(--status-safe);
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--status-safe);
 }
 
 .btn-report-add:disabled {

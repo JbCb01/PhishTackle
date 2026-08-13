@@ -5,8 +5,6 @@ import { formatDate, parseYamlConfig, escapeHtml, sendMessage } from '../../util
 // ==========================================
 
 const exclusionsTextarea = document.getElementById('exclusions-textarea');
-const exclusionsPreview = document.getElementById('exclusions-preview');
-const exclusionsPreviewList = document.getElementById('exclusions-preview-list');
 const refreshIntervalSelect = document.getElementById('refresh-interval');
 const cacheCountEl = document.getElementById('cache-count');
 const cacheUpdatedEl = document.getElementById('cache-updated');
@@ -29,14 +27,32 @@ const clipboardProtectionToggle = document.getElementById('clipboard-protection-
 document.addEventListener('DOMContentLoaded', async () => {
   await loadSettings();
   await loadCacheStatus();
+  await loadShortcut();
   setupEventListeners();
 });
 
 function setupEventListeners() {
-  exclusionsTextarea.addEventListener('input', updatePreview);
   btnSave.addEventListener('click', handleSave);
   if (btnSaveTop) btnSaveTop.addEventListener('click', handleSave);
   btnClearCache.addEventListener('click', handleClearCache);
+}
+
+async function loadShortcut() {
+  const shortcutBadge = document.getElementById('shortcut-badge');
+
+  if (chrome.commands && chrome.commands.getAll) {
+    try {
+      const commands = await chrome.commands.getAll();
+      const actionCmd = commands.find(c => c.name === '_execute_action');
+      if (actionCmd && actionCmd.shortcut && shortcutBadge) {
+        shortcutBadge.textContent = actionCmd.shortcut;
+      } else if (shortcutBadge) {
+        shortcutBadge.textContent = 'Alt+Shift+A (Default)';
+      }
+    } catch {
+      if (shortcutBadge) shortcutBadge.textContent = 'Alt+Shift+A';
+    }
+  }
 }
 
 // ==========================================
@@ -49,7 +65,6 @@ async function loadSettings() {
 
     if (settings.exclusions?.length > 0) {
       exclusionsTextarea.value = settings.exclusions.join('\n');
-      updatePreview();
     }
 
     if (settings.excludedIps?.length > 0) {
@@ -76,15 +91,9 @@ async function loadSettings() {
       clipboardProtectionToggle.checked = settings.clipboardProtection !== false;
     }
 
-    const result = await chrome.storage.local.get('reported_categories');
-    const res = await fetch(chrome.runtime.getURL('config.yaml'));
-    const text = await res.text();
-    const config = parseYamlConfig(text);
-    const defaultCategories = config.categories || ['other'];
-
-    const categories = result.reported_categories || defaultCategories;
-    categoriesTextarea.value = categories.join('\n');
-
+    if (settings.categories?.length > 0) {
+      categoriesTextarea.value = settings.categories.join('\n');
+    }
   } catch (error) {
     console.error('Error loading settings:', error);
   }
@@ -115,41 +124,8 @@ async function loadCacheStatus() {
 }
 
 // ==========================================
-// Handlers & Rule Parsing
+// Handlers
 // ==========================================
-
-function updatePreview() {
-  const text = exclusionsTextarea.value.trim();
-
-  if (!text) {
-    exclusionsPreview.hidden = true;
-    return;
-  }
-
-  const rules = parseRules(text);
-  exclusionsPreview.hidden = false;
-
-  exclusionsPreviewList.innerHTML = rules.map(rule => {
-    if (!rule.valid) {
-      return `<span class="settings-preview__tag settings-preview__tag--invalid" title="Invalid rule">${escapeHtml(rule.text)}</span>`;
-    }
-    if (rule.isWildcard) {
-      return `<span class="settings-preview__tag settings-preview__tag--wildcard" title="Wildcard: matches domain and subdomains">✱ ${escapeHtml(rule.text)}</span>`;
-    }
-    return `<span class="settings-preview__tag" title="Exact match">${escapeHtml(rule.text)}</span>`;
-  }).join('');
-}
-
-function parseRules(text) {
-  return text.split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .map(line => {
-      const isWildcard = line.startsWith('*.');
-      const valid = /^(\*\.)?[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]*[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/.test(line);
-      return { text: line, isWildcard, valid };
-    });
-}
 
 function splitLines(text) {
   return text ? text.split('\n').map(l => l.trim()).filter(l => l.length > 0) : [];
@@ -159,7 +135,7 @@ async function handleSave() {
   try {
     const exclusions = splitLines(exclusionsTextarea.value);
     const excludedIps = splitLines(excludedIpsTextarea.value);
-    const refreshHours = parseInt(refreshIntervalSelect.value, 10) || 6;
+    const refreshHours = parseInt(refreshIntervalSelect.value, 10) || 1;
     const googleSearchCheckboxes = googleSearchToggle ? googleSearchToggle.checked : true;
     const facebookPreventRefresh = facebookPreventRefreshToggle ? facebookPreventRefreshToggle.checked : true;
     const downloadProtection = downloadProtectionToggle ? downloadProtectionToggle.checked : true;
@@ -188,7 +164,7 @@ async function handleClearCache() {
   try {
     const keys = await chrome.storage.local.get(null);
     const keysToRemove = Object.keys(keys).filter(k =>
-      k.startsWith('ultra_domains') || k === 'ultra_meta' || k.startsWith('certpl_domains') || k === 'certpl_meta'
+      k.startsWith('phishtackle_domains') || k === 'phishtackle_meta' || k.startsWith('ultra_domains') || k === 'ultra_meta' || k.startsWith('certpl_domains') || k === 'certpl_meta'
     );
     await chrome.storage.local.remove(keysToRemove);
 

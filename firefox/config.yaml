@@ -1,5 +1,5 @@
 # ==========================================
-# ULTRA Phish Catcher - Default Configuration
+# PhishTackle - Default Configuration
 # ==========================================
 
 # Excluded IP subnets and addresses (e.g. Cloudflare / WAF ranges ignored for alerts)
@@ -25,8 +25,18 @@ excludedIps:
   - "2a06:98c0::/29"
   - "2c0f:f248::/32"
 
-# Domain exclusion patterns (e.g. "facebook.com", "*.google.com")
-exclusions: []
+# Domain exclusion patterns (Trusted public institutions & infrastructure)
+exclusions:
+  - "*.gov.pl"
+  - "policja.pl"
+  - "*.policja.pl"
+  - "zus.pl"
+  - "*.zus.pl"
+  - "cert.pl"
+  - "*.cert.pl"
+  - "nask.pl"
+  - "*.nask.pl"
+  - "prezydent.pl"
 
 # Default domain reporting categories
 categories:

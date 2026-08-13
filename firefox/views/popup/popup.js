@@ -34,12 +34,23 @@ let manualAddFeedbackTimeout = null;
 // Initialization & Event Listeners
 // ==========================================
 
-document.addEventListener('DOMContentLoaded', async () => {
-  await loadCategories();
+btnSettingsEl?.addEventListener('click', () => {
+  if (chrome.runtime?.openOptionsPage) {
+    chrome.runtime.openOptionsPage();
+  } else {
+    chrome.tabs.create({ url: chrome.runtime.getURL('views/settings/settings.html') });
+  }
+});
 
+btnReportsEl?.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('views/reports/reports.html') });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
-  checkCurrentTab();
-  loadFooterStats();
+  checkCurrentTab().catch(() => {});
+  loadCategories().catch(() => {});
+  loadFooterStats().catch(() => {});
 });
 
 function setupEventListeners() {
@@ -49,46 +60,120 @@ function setupEventListeners() {
     if (e.key === 'Enter') handleManualCheck();
   });
 
-  btnSettingsEl.addEventListener('click', () => {
-    if (chrome.runtime.openOptionsPage) {
-      chrome.runtime.openOptionsPage();
-    } else {
-      chrome.tabs.create({ url: chrome.runtime.getURL('views/settings/settings.html') });
-    }
-  });
-
-  btnReportsEl.addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('views/reports/reports.html') });
-  });
-
   btnRefreshEl.addEventListener('click', handleRefresh);
   btnAddReportEl.addEventListener('click', handleAddReport);
 
   const btnManualAdd = document.getElementById('btn-manual-add');
   if (btnManualAdd) btnManualAdd.addEventListener('click', handleManualAdd);
+
+  if (chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.action === 'sslDetailsUpdated') {
+        if (message.domain === currentTabDomain) {
+          fetchSslUpdateOnly(message.domain, message.tabId);
+        }
+      }
+    });
+  }
 }
 
 // ==========================================
 // Core Domain Checking
 // ==========================================
 
-async function checkCurrentTab() {
+let sslRetryCount = 0;
+
+function extractDomainFromInput(input) {
+  if (!input) return '';
   try {
-    const result = await sendMessage({ action: 'checkCurrentTab' });
-
-    if (result.error || !result.currentDomain) {
-      displayNoDomain(result.error);
-      return;
-    }
-
-    currentTabDomain = result.currentDomain;
-    currentTabUrl = result.tabUrl;
-
-    renderStatusCard(result, statusCardContainer);
-    setupTabReportControls(result);
-  } catch (error) {
-    displayNoDomain(error.message);
+    return cleanUrl(input) || input;
+  } catch {
+    return input;
   }
+}
+
+async function checkCurrentTab() {
+  let activeTab = null;
+
+  try {
+    let tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tabs || tabs.length === 0 || !tabs[0]?.url) {
+      tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    }
+    if (tabs && tabs.length > 0) {
+      activeTab = tabs.find(t => t.url && !t.url.startsWith('about:') && !t.url.startsWith('moz-extension:') && !t.url.startsWith('chrome:'));
+    }
+  } catch { }
+
+  if (!activeTab?.url) {
+    displayNoDomain('No active website to inspect.');
+    return;
+  }
+
+  const domain = extractDomainFromInput(activeTab.url);
+  const isNewDomain = (currentTabDomain !== domain);
+  currentTabDomain = domain;
+  currentTabUrl = activeTab.url;
+
+  // Render initial card ONLY if domain changed or container is empty!
+  if (isNewDomain || !statusCardContainer.querySelector('.status-card')) {
+    renderInitialCard(domain, activeTab.url, statusCardContainer);
+  }
+
+  try {
+    const result = await sendMessage({
+      action: 'checkDomainForTab',
+      domain,
+      tabId: activeTab.id,
+      url: activeTab.url
+    });
+
+    if (result && !result.error) {
+      renderStatusCard(result, statusCardContainer);
+      setupTabReportControls(result);
+
+      if (result.sslDetails?.source === 'loading' && sslRetryCount < 2) {
+        sslRetryCount++;
+        setTimeout(() => {
+          if (currentTabDomain === domain) {
+            fetchSslUpdateOnly(domain, activeTab.id);
+          }
+        }, 1000);
+      } else if (result.sslDetails?.issuer) {
+        sslRetryCount = 0;
+      }
+    }
+  } catch (error) {
+    console.error('Error checking tab domain:', error);
+  }
+}
+
+async function fetchSslUpdateOnly(domain, tabId) {
+  try {
+    const result = await sendMessage({
+      action: 'checkDomainForTab',
+      domain,
+      tabId: tabId || -1,
+      url: currentTabUrl
+    });
+    if (result && !result.error && currentTabDomain === domain) {
+      renderStatusCard(result, statusCardContainer);
+    }
+  } catch { }
+}
+
+function renderInitialCard(domain, url, container) {
+  const isHttps = url ? url.toLowerCase().startsWith('https:') : true;
+  const initialResult = {
+    currentDomain: domain,
+    cleanDomain: domain,
+    isHttps,
+    isLoading: true,
+    ip: null,
+    ipDetails: null,
+    sslDetails: isHttps ? { source: 'loading' } : null
+  };
+  renderStatusCard(initialResult, container);
 }
 
 async function handleManualCheck() {
@@ -99,17 +184,10 @@ async function handleManualCheck() {
   manualAddRow.hidden = true;
   manualAddFeedback.hidden = true;
 
-  resultEl.innerHTML = `
-    <div class="status-card">
-      <div class="status-card__loading">
-        <div class="spinner"></div>
-        <span>Checking domain ${escapeHtml(input)}...</span>
-      </div>
-    </div>
-  `;
+  const domainToQuery = extractDomainFromInput(input);
+  renderInitialCard(domainToQuery, input, resultEl);
 
   try {
-    const domainToQuery = extractDomainFromInput(input);
     const result = await sendMessage({
       action: 'checkDomain',
       domain: domainToQuery
@@ -121,8 +199,8 @@ async function handleManualCheck() {
     manualAddRow.hidden = false;
   } catch (error) {
     resultEl.innerHTML = `
-      <div class="status-card status-card--danger">
-        <div class="status-card__message">Error checking domain: ${escapeHtml(error.message)}</div>
+      <div class="status-card">
+        <div class="status-card__message" style="color: var(--text-tertiary);">Error checking domain: ${escapeHtml(error.message)}</div>
       </div>
     `;
   } finally {
@@ -138,9 +216,9 @@ function renderStatusCard(result, container) {
   const cardData = buildCheckCard(result);
 
   container.innerHTML = `
-    <div class="status-card status-card--${cardData.cardClass}">
+    <div class="status-card">
       <div class="status-card__header">
-        <div class="status-card__indicator"></div>
+        <div class="status-card__indicator ${cardData.indicatorClass}"></div>
         <div class="status-card__domain">${escapeHtml(cardData.displayDomain)}</div>
       </div>
       <div class="status-card__message">${escapeHtml(cardData.messageText)}</div>
@@ -157,8 +235,8 @@ function renderStatusCard(result, container) {
         await navigator.clipboard.writeText(ip);
         const icon = el.querySelector('.copy-icon');
         if (icon) {
-          icon.textContent = '✔️';
-          setTimeout(() => { icon.textContent = '📋'; }, 2000);
+          icon.textContent = '[Copied]';
+          setTimeout(() => { icon.textContent = '[Copy]'; }, 2000);
         }
       } catch { }
     });
@@ -166,9 +244,17 @@ function renderStatusCard(result, container) {
 }
 
 function buildCheckCard(result) {
+  if (result.isLoading) {
+    return {
+      indicatorClass: 'status-card__indicator--checking',
+      displayDomain: result.cleanDomain || result.currentDomain,
+      messageText: ''
+    };
+  }
+
   if (result.isExcluded) {
     return {
-      cardClass: 'excluded',
+      indicatorClass: 'status-card__indicator--excluded',
       displayDomain: result.cleanDomain || result.currentDomain,
       messageText: 'Domain is on the excluded list'
     };
@@ -176,16 +262,16 @@ function buildCheckCard(result) {
 
   if (result.found) {
     return {
-      cardClass: 'danger',
+      indicatorClass: 'status-card__indicator--danger',
       displayDomain: result.matchedDomain || result.cleanDomain || result.currentDomain,
-      messageText: '🚨 Domain found on hole.cert.pl!'
+      messageText: 'Domain found on hole.cert.pl list!'
     };
   }
 
   return {
-    cardClass: 'safe',
-    displayDomain: result.cleanDomain || result.currentDomain || 'Safe',
-    messageText: '✔️ Domain is NOT on the hole.cert.pl'
+    indicatorClass: 'status-card__indicator--safe',
+    displayDomain: result.cleanDomain || result.currentDomain || '',
+    messageText: 'Domain is NOT on hole.cert.pl list'
   };
 }
 
@@ -199,32 +285,53 @@ function buildCheckDetails(result) {
   if (result.ip) {
     const copyIpHtml = `
       <span class="copy-ip-value" data-ip="${escapeHtml(result.ip)}" title="Click to copy IP address">
-        ${escapeHtml(result.ip)} <span class="copy-icon">📋</span>
+        ${escapeHtml(result.ip)} <span class="copy-icon">[Copy]</span>
       </span>
     `;
     details.push(['IP Address:', copyIpHtml, true]);
+  } else {
+    details.push(['IP Address:', '[Checking...]', false]);
   }
 
   if (result.ipDetails) {
     const orgName = result.ipDetails.org || result.ipDetails.isp || '';
-    let wafLabel = orgName;
     if (result.isIpExcluded) {
-      wafLabel += wafLabel ? ' (WAF Ignored)' : 'WAF Ignored';
-    }
-    if (wafLabel) {
-      details.push(['WAF / Provider:', wafLabel, false]);
+      const wafName = orgName || 'Detected';
+      details.push(['WAF:', wafName, false]);
+    } else if (orgName) {
+      details.push(['Provider:', orgName, false]);
     }
   } else if (result.isIpExcluded) {
-    details.push(['WAF Status:', 'WAF Protection (Ignored)', false]);
+    details.push(['WAF:', 'Detected', false]);
+  } else if (result.isLoading || !result.ip) {
+    details.push(['Provider:', '[Checking...]', false]);
   }
 
-  const sslIssuer = result.sslIssuer || result.sslDetails?.issuer;
+  const sslDetails = result.sslDetails;
+  const sslIssuer = result.sslIssuer || sslDetails?.issuer;
   if (sslIssuer) {
     details.push(['SSL Issuer:', sslIssuer, false]);
+  } else if (result.isHttps) {
+    details.push(['SSL Status:', '[Checking...]', false]);
+  }
+
+  if (sslDetails?.subject) {
+    details.push(['SSL Owner / Subject:', sslDetails.subject, false]);
+  }
+
+  if (sslDetails?.daysRemaining !== undefined && sslDetails?.daysRemaining !== null) {
+    const days = sslDetails.daysRemaining;
+    let expText = '';
+    if (days > 0) {
+      expText = `Valid (${days} ${days === 1 ? 'day' : 'days'} remaining)`;
+    } else {
+      expText = `Expired (${Math.abs(days)} ${Math.abs(days) === 1 ? 'day' : 'days'} ago)`;
+    }
+    details.push(['SSL Expiration:', expText, false]);
   }
 
   if (result.isHttps === false) {
-    details.push(['HTTP Status:', '⚠️ Insecure connection (HTTP)', false]);
+    details.push(['HTTP Status:', 'Insecure connection (HTTP)', false]);
   }
 
   if (details.length === 0) return '';
@@ -269,23 +376,26 @@ async function loadCategories() {
   manualAddCategory.innerHTML = optionsHtml;
 }
 
+let isAddAgainMode = false;
+let addAgainTimeout = null;
+
 function setupTabReportControls(result) {
   if (result.isExcluded || !currentTabUrl) {
     reportActionRow.hidden = true;
     return;
   }
   reportActionRow.hidden = false;
+  reportCategorySelect.disabled = false;
+  btnAddReportEl.disabled = false;
 
   if (result.onLocalReportList) {
-    btnAddReportEl.className = 'btn-report-add btn-report-add--disabled';
-    btnAddReportEl.innerHTML = `<span>✅ Domain added</span>`;
-    btnAddReportEl.disabled = true;
-    reportCategorySelect.disabled = true;
+    isAddAgainMode = true;
+    btnAddReportEl.className = 'btn-report-add btn-report-add--again';
+    btnAddReportEl.innerHTML = '<span>Add Again</span>';
   } else {
+    isAddAgainMode = false;
     btnAddReportEl.className = 'btn-report-add';
-    btnAddReportEl.innerHTML = '<span>➕ Add to List</span>';
-    btnAddReportEl.disabled = false;
-    reportCategorySelect.disabled = false;
+    btnAddReportEl.innerHTML = '<span>Add to List</span>';
   }
 }
 
@@ -294,27 +404,39 @@ async function handleAddReport() {
 
   const category = reportCategorySelect.value;
   btnAddReportEl.disabled = true;
+  reportCategorySelect.disabled = true;
 
   try {
     const response = await sendMessage({
       action: 'addReport',
       url: currentTabUrl,
-      category
+      category,
+      force: isAddAgainMode
     });
 
-    if (response.added > 0) {
+    if (response.added > 0 || response.existingDate) {
       btnAddReportEl.className = 'btn-report-add btn-report-add--success';
-      btnAddReportEl.innerHTML = '<span>✅ Domain added</span>';
-    } else if (response.existingDate) {
-      btnAddReportEl.className = 'btn-report-add';
-      btnAddReportEl.innerHTML = `<span>⚠ Already on list (${response.existingDate})</span>`;
+      btnAddReportEl.innerHTML = '<span>Domain Added</span>';
+
+      clearTimeout(addAgainTimeout);
+      addAgainTimeout = setTimeout(() => {
+        isAddAgainMode = true;
+        btnAddReportEl.className = 'btn-report-add btn-report-add--again';
+        btnAddReportEl.innerHTML = '<span>Add Again</span>';
+        btnAddReportEl.disabled = false;
+        reportCategorySelect.disabled = false;
+      }, 3000);
     } else {
       btnAddReportEl.className = 'btn-report-add';
-      btnAddReportEl.innerHTML = '<span>⚠ Could not add</span>';
+      btnAddReportEl.innerHTML = '<span>Could not add</span>';
+      btnAddReportEl.disabled = false;
+      reportCategorySelect.disabled = false;
     }
   } catch {
     btnAddReportEl.className = 'btn-report-add';
-    btnAddReportEl.innerHTML = '<span>❌ Error adding</span>';
+    btnAddReportEl.innerHTML = '<span>Error adding</span>';
+    btnAddReportEl.disabled = false;
+    reportCategorySelect.disabled = false;
   }
 }
 
@@ -338,10 +460,10 @@ async function handleManualAdd() {
     });
 
     if (resp.added > 0) {
-      showManualAddFeedback(`✓ Added ${clean} to report list`, 'success');
+      showManualAddFeedback(`Added ${clean} to report list`, 'success');
       inputDomainEl.value = '';
     } else if (resp.existingDate) {
-      showManualAddFeedback(`⚠ Domain already on list (${resp.existingDate})`, 'warn');
+      showManualAddFeedback(`Domain already on list (${resp.existingDate})`, 'warn');
     } else {
       showManualAddFeedback('Could not add domain', 'warn');
     }
@@ -407,16 +529,6 @@ async function handleRefresh() {
 // ==========================================
 // Helpers
 // ==========================================
-
-function extractDomainFromInput(input) {
-  let cleaned = input.toLowerCase().trim();
-  if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
-    try {
-      cleaned = new URL(cleaned).hostname;
-    } catch { }
-  }
-  return cleaned;
-}
 
 function formatRelativeTime(isoString) {
   try {

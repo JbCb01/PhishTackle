@@ -40,6 +40,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   btnCopySession.addEventListener('click', handleCopySession);
   btnDeleteSession.addEventListener('click', handleDeleteSession);
+
+  if (chrome.runtime?.onMessage) {
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message.action === 'reportsUpdated') {
+        loadAndRender().catch(() => {});
+      }
+    });
+  }
+
+  if (chrome.storage?.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && (changes.reported_urls || changes.reported_sessions || changes.reported_date)) {
+        loadAndRender().catch(() => {});
+      }
+    });
+  }
 });
 
 /** Loads configured categories for domain entry select element. */
@@ -158,7 +174,7 @@ function renderSession(date) {
           data-cat="${escapeHtml(cat)}"
           data-url="${escapeHtml(url)}"
           title="Delete this entry"
-        >🗑️</button>
+        >Delete</button>
       </li>
     `).join('');
 
@@ -222,27 +238,21 @@ async function handleAddDomain() {
 
   const cat = addDomainSelect.value;
   const targetDate = addDomainInput.dataset.targetDate || allData.currentDate;
-  const clean = cleanUrl(raw);
-
-  if (!clean) {
-    showAddFeedback('Invalid URL or domain', 'error');
-    return;
-  }
 
   try {
     const resp = await sendMessage({
       action: 'addToSession',
       date: targetDate,
       category: cat,
-      url: clean
+      url: raw
     });
 
     if (resp.added > 0) {
       addDomainInput.value = '';
-      showAddFeedback(`✓ Added to session ${targetDate}`, 'success');
+      showAddFeedback(`Added to session ${targetDate}`, 'success');
       await loadAndRender();
     } else if (resp.existingDate) {
-      showAddFeedback(`⚠ Already added: ${resp.existingDate}`, 'warn');
+      showAddFeedback(`Already added: ${resp.existingDate}`, 'warn');
     } else {
       showAddFeedback('Could not add (duplicate)', 'warn');
     }
@@ -281,7 +291,7 @@ async function handleCopySession() {
 async function handleDeleteSession() {
   if (!deleteSessionConfirming) {
     deleteSessionConfirming = true;
-    btnDeleteSession.textContent = '⚠ Confirm deletion';
+    btnDeleteSession.textContent = 'Confirm deletion';
     btnDeleteSession.classList.add('confirming');
     deleteSessionTimer = setTimeout(() => {
       resetDeleteConfirm();

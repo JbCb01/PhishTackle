@@ -134,6 +134,21 @@ export function cleanUrl(rawUrl) {
   }
 }
 
+/** Formats URL keeping origin, pathname, search params, and hash. */
+export function preserveFullUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  let url = rawUrl.trim();
+  if (!/^https?:\/\//i.test(url)) {
+    url = 'https://' + url;
+  }
+  try {
+    const u = new URL(url);
+    return u.origin + u.pathname + u.search + u.hash;
+  } catch {
+    return url;
+  }
+}
+
 /** Escapes HTML special characters for safe string interpolation. */
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -158,9 +173,9 @@ export function sendMessage(message) {
   });
 }
 
-/** Parses config.yaml format (blocked_domains and categories). */
+/** Parses config.yaml format (exclusions, excludedIps, and categories). */
 export function parseYamlConfig(yamlText) {
-  const result = { blockedDomains: [], categories: [] };
+  const result = { exclusions: [], excludedIps: [], categories: [] };
   if (!yamlText) return result;
 
   const lines = yamlText.split('\n');
@@ -170,8 +185,11 @@ export function parseYamlConfig(yamlText) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
 
-    if (trimmed.startsWith('blocked_domains:')) {
-      currentSection = 'blockedDomains';
+    if (trimmed.startsWith('exclusions:')) {
+      currentSection = 'exclusions';
+      continue;
+    } else if (trimmed.startsWith('excludedIps:')) {
+      currentSection = 'excludedIps';
       continue;
     } else if (trimmed.startsWith('categories:')) {
       currentSection = 'categories';
