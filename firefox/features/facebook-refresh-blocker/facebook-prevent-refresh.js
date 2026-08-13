@@ -1,7 +1,5 @@
 /**
- * Facebook Auto-Refresh Prevention Content Script
- * Uses uBlock Origin's addEventListener-defuser (aeld) technique to block Facebook's
- * visibilitychange, blur, focus, afterblur, and mousemove listeners.
+ * Facebook Auto-Refresh Prevention Content Script with DevTools Debugging
  */
 
 (function () {
@@ -10,8 +8,6 @@
   if (window.__fbPreventRefreshInjected) return;
   window.__fbPreventRefreshInjected = true;
 
-  // Inject IMMEDIATELY at document_start in the MAIN world to intercept addEventListener
-  // before Facebook's scripts execute.
   injectMainWorldInterceptor();
 
   function injectMainWorldInterceptor() {
@@ -19,6 +15,8 @@
       (function() {
         if (window.__fbAeldInjected) return;
         window.__fbAeldInjected = true;
+
+        console.log('[PhishTackle FB Debug] 🛡️ Facebook Refresh Blocker active in MAIN world.');
 
         try {
           Object.defineProperty(document, 'visibilityState', {
@@ -29,36 +27,42 @@
             get: function() { return false; },
             configurable: true
           });
-        } catch { }
-
-        const reBlockedEvents = /^(blur|focus|afterblur|mousemove|visibilitychange|webkitvisibilitychange)$/i;
-        const origAddEventListener = EventTarget.prototype.addEventListener;
-
-        EventTarget.prototype.addEventListener = function(type, listener, options) {
-          if (typeof type === 'string' && reBlockedEvents.test(type.trim())) {
-            return;
-          }
-          return origAddEventListener.call(this, type, listener, options);
-        };
-
-        if (Object.hasOwn(window, 'addEventListener')) {
-          const origWinAEL = window.addEventListener;
-          window.addEventListener = function(type, listener, options) {
-            if (typeof type === 'string' && reBlockedEvents.test(type.trim())) {
-              return;
-            }
-            return origWinAEL.call(this, type, listener, options);
-          };
+          document.hasFocus = function() { return true; };
+        } catch(e) {
+          console.warn('[PhishTackle FB Debug] Property override error:', e);
         }
 
-        if (Object.hasOwn(document, 'addEventListener')) {
-          const origDocAEL = document.addEventListener;
-          document.addEventListener = function(type, listener, options) {
-            if (typeof type === 'string' && reBlockedEvents.test(type.trim())) {
-              return;
-            }
-            return origDocAEL.call(this, type, listener, options);
-          };
+        const reBlockedEvents = /^(blur|focus|focusin|focusout|afterblur|mousemove|pointermove|visibilitychange|webkitvisibilitychange|pageshow|pagehide)$/i;
+
+        const origAEL = EventTarget.prototype.addEventListener;
+
+        EventTarget.prototype.addEventListener = function(type, listener, options) {
+          const t = String(type).trim();
+          if (reBlockedEvents.test(t)) {
+            console.log('[PhishTackle FB Debug] ⛔ BLOCKED addEventListener:', t, this);
+            return;
+          }
+          return origAEL.call(this, type, listener, options);
+        };
+
+        const blockProps = ['onfocus', 'onblur', 'onvisibilitychange', 'onwebkitvisibilitychange', 'onpagehide', 'onpageshow'];
+        for (const prop of blockProps) {
+          try {
+            Object.defineProperty(window, prop, {
+              get() { return null; },
+              set(val) {
+                console.log('[PhishTackle FB Debug] ⛔ BLOCKED direct property setter window.' + prop);
+              },
+              configurable: true
+            });
+            Object.defineProperty(document, prop, {
+              get() { return null; },
+              set(val) {
+                console.log('[PhishTackle FB Debug] ⛔ BLOCKED direct property setter document.' + prop);
+              },
+              configurable: true
+            });
+          } catch {}
         }
       })();
     `;

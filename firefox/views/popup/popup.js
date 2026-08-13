@@ -301,10 +301,17 @@ function buildCheckDetails(result) {
     } else if (orgName) {
       details.push(['Provider:', orgName, false]);
     }
+
+    if (result.ipDetails.asn) {
+      const asnStr = result.ipDetails.asn;
+      const ispStr = result.ipDetails.isp && result.ipDetails.isp !== orgName ? ` (${result.ipDetails.isp})` : '';
+      details.push(['ASN:', `${asnStr}${ispStr}`, false]);
+    }
   } else if (result.isIpExcluded) {
     details.push(['WAF:', 'Detected', false]);
   } else if (result.isLoading || !result.ip) {
     details.push(['Provider:', '[Checking...]', false]);
+    details.push(['ASN:', '[Checking...]', false]);
   }
 
   const sslDetails = result.sslDetails;

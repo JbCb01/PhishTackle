@@ -596,10 +596,13 @@ async function getIpInfo(ip) {
       const json = await res.json();
       if (json.success) {
         const connection = json.connection || {};
+        const asnNum = connection.asn ? String(connection.asn).replace(/^AS/i, '') : '';
+        const asnFormatted = asnNum ? `AS${asnNum}` : '';
         const data = {
           ip,
           org: connection.org || '',
           isp: connection.isp || '',
+          asn: asnFormatted,
           rdns: connection.domain || '',
           isWaf: false,
           timestamp: Date.now()
