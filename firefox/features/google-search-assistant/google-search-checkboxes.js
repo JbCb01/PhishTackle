@@ -56,12 +56,12 @@
     if (status.onCertList) {
       badge = document.createElement('span');
       badge.className = 'phishtackle-badge phishtackle-badge--cert';
-      badge.textContent = 'BLOCKED';
+      badge.textContent = 'CERT';
       badge.title = 'Domain is on the blocklist';
     } else if (status.onLocalList) {
       badge = document.createElement('span');
       badge.className = 'phishtackle-badge phishtackle-badge--local';
-      badge.textContent = 'on list';
+      badge.textContent = 'LIST';
       badge.title = 'Domain is already in your local report list';
     }
 

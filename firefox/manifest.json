@@ -91,6 +91,16 @@
       ],
       "js": ["features/facebook-refresh-blocker/facebook-prevent-refresh.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://urlscan.io/*",
+        "*://www.urlscan.io/*",
+        "*://pro.urlscan.io/*"
+      ],
+      "css": ["features/urlscan-assistant/urlscan-assistant.css"],
+      "js": ["features/urlscan-assistant/urlscan-assistant.js"],
+      "run_at": "document_end"
     }
   ]
 }

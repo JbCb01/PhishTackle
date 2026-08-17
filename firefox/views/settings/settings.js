@@ -16,6 +16,7 @@ const saveFeedback = document.getElementById('save-feedback');
 const categoriesTextarea = document.getElementById('categories-textarea');
 const excludedIpsTextarea = document.getElementById('excluded-ips-textarea');
 const googleSearchToggle = document.getElementById('google-search-checkboxes-toggle');
+const urlscanAssistantToggle = document.getElementById('urlscan-assistant-toggle');
 const facebookPreventRefreshToggle = document.getElementById('facebook-prevent-refresh-toggle');
 const downloadProtectionToggle = document.getElementById('download-protection-toggle');
 const clipboardProtectionToggle = document.getElementById('clipboard-protection-toggle');
@@ -79,6 +80,10 @@ async function loadSettings() {
       googleSearchToggle.checked = settings.googleSearchCheckboxes !== false;
     }
 
+    if (urlscanAssistantToggle) {
+      urlscanAssistantToggle.checked = settings.urlscanAssistant !== false;
+    }
+
     if (facebookPreventRefreshToggle) {
       facebookPreventRefreshToggle.checked = settings.facebookPreventRefresh !== false;
     }
@@ -137,13 +142,14 @@ async function handleSave() {
     const excludedIps = splitLines(excludedIpsTextarea.value);
     const refreshHours = parseInt(refreshIntervalSelect.value, 10) || 1;
     const googleSearchCheckboxes = googleSearchToggle ? googleSearchToggle.checked : true;
+    const urlscanAssistant = urlscanAssistantToggle ? urlscanAssistantToggle.checked : true;
     const facebookPreventRefresh = facebookPreventRefreshToggle ? facebookPreventRefreshToggle.checked : true;
     const downloadProtection = downloadProtectionToggle ? downloadProtectionToggle.checked : true;
     const clipboardProtection = clipboardProtectionToggle ? clipboardProtectionToggle.checked : true;
 
     await sendMessage({
       action: 'saveSettings',
-      settings: { exclusions, excludedIps, refreshHours, googleSearchCheckboxes, facebookPreventRefresh, downloadProtection, clipboardProtection }
+      settings: { exclusions, excludedIps, refreshHours, googleSearchCheckboxes, urlscanAssistant, facebookPreventRefresh, downloadProtection, clipboardProtection }
     });
 
     const categories = splitLines(categoriesTextarea.value);
