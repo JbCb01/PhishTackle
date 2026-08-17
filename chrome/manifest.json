@@ -1,0 +1,99 @@
+{
+  "manifest_version": 3,
+  "name": "PhishTackle",
+  "version": "1.0.0",
+  "description": "Real-time phishing and malicious domain detector designed for Threat Hunters and security analysts.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "activeTab",
+    "webRequest",
+    "unlimitedStorage",
+    "downloads",
+    "notifications",
+    "clipboardRead",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://hole.cert.pl/*",
+    "*://*/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "views/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    },
+    "default_title": "PhishTackle"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "options_ui": {
+    "page": "views/settings/settings.html",
+    "open_in_tab": true
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+A",
+        "mac": "Alt+Shift+A"
+      },
+      "description": "Toggle PhishTackle popup window"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "features/clipboard-protection/clipboard-interceptor.js"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["features/clipboard-protection/clipboard-bridge.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://www.google.com/search*",
+        "*://google.com/search*"
+      ],
+      "css": ["features/google-search-assistant/google-search-checkboxes.css"],
+      "js": ["features/google-search-assistant/google-search-checkboxes.js"],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "*://www.facebook.com/*",
+        "*://facebook.com/*",
+        "*://web.facebook.com/*",
+        "*://m.facebook.com/*"
+      ],
+      "js": ["features/facebook-refresh-blocker/facebook-prevent-refresh.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://urlscan.io/*",
+        "*://www.urlscan.io/*",
+        "*://pro.urlscan.io/*"
+      ],
+      "css": ["features/urlscan-assistant/urlscan-assistant.css"],
+      "js": ["features/urlscan-assistant/urlscan-assistant.js"],
+      "run_at": "document_end"
+    }
+  ]
+}
