@@ -1,50 +1,74 @@
-# PhishTackle - Dokumentacja Operacyjna dla Analityków CSIRT
+# PhishTackle — Dokumentacja Techniczna dla Analityków SOC / CSIRT
 
-PhishTackle to rozszerzenie przeglądarkowe wspierające w detekcji, weryfikacji i obsłudze incydentów phishingowych oraz dystrybucji złośliwego oprogramowania.
-
----
-
-## Główne Zastosowania Operacyjne
-
-### 1. Detekcja Złośliwych Domen w Czasie Rzeczywistym
-- Integracja z oficjalną listą ostrzeżeń CERT.pl (hole.cert.pl) oraz praca w trybie lokalnej pamięci podręcznej.
-- Korzyść operacyjna: Natychmiastowa identyfikacja złośliwych domen bez konieczności wykonywania zapytań sieciowych w trakcie rekonesansu, co eliminuje ryzyko wycieku zapytań DNS podczas analizy zagrożenia.
-
-< PLACEHOLDER: Popup wtyczki z weryfikacją aktywnej domeny i szczegółami diagnostycznymi IP/SSL >
-
-### 2. Diagnostyka Techniczna i Inspektor Połączeń
-- Analiza adresu IP, dostawcy infrastruktury (WAF/CDN), certyfikatu SSL oraz statusu szyfrowania HTTP/HTTPS.
-- Korzyść operacyjna: Błyskawiczna identyfikacja adresacji IP z funkcją szybkiego kopiowania do schowka, rozpoznawanie dostawców hostingu złośliwej infrastruktury oraz wykrywanie połączeń nieszyfrowanych bez używania zewnętrznych narzędzi.
-
-### 3. Masowa Analiza Wyników Google (Google Search Assistant)
-- Injekcja odznak statusu (BLOCKED / ON LIST) oraz pól wyboru bezpośrednio w wynikach wyszukiwania Google.
-- Korzyść operacyjna: Identyfikacja kampanii reklamowych oszustw oraz typosquattingu. Analityk może zaznaczyć wiele złośliwych domen z poziomu wyszukiwarki i masowo dodać je do kolejki zgłoszeniowej.
-
-< PLACEHOLDER: Wyniki wyszukiwania Google z odznakami blokad i paskiem masowego zgłaszania domen >
-
-### 4. Rejestracja i Przygotowanie Zgłoszeń Incydentów
-- Centralny panel zbierania domen z podziałem na kategorie (np. Fałszywe Inwestycje, Bankowość, Polityczne) oraz sesje dzienne z automatyczną deduplikacją.
-- Korzyść operacyjna: Sprawne przygotowywanie ustrukturyzowanych list domen do przekazania do rejestru CERT.pl, dostawców abuse lub zasilenia reguł blokujących w systemach SIEM, EDR i Firewall.
-
-< PLACEHOLDER: Panel zarządzania sesjami i raportowaniem incydentów >
-
-### 5. Bezpieczne Pozyskiwanie Próbek Złośliwego Oprogramowania
-- Przechwytywanie pobrań plików z opcją automatycznej izolacji (zmiana rozszerzenia na .sample).
-- Korzyść operacyjna: Bezpieczne pobieranie artefaktów złośliwego oprogramowania bez ryzyka przypadkowego uruchomienia pliku wykonywalnego w środowisku analitycznym.
-
-< PLACEHOLDER: Alert ochrony pobierania plików i izolacji próbek malware >
-
-### 6. Neutralizacja Ataków na Schowek i Stabilizacja Analizy
-- Wykrywanie nieautoryzowanych prób nadpisania schowka (Clipboard Hijacking) oraz blokowanie automatycznego odświeżania aktualności na portalu Facebook.
-- Korzyść operacyjna: Ochrona przed podmienieniem portfeli lub linków w schowku oraz zachowanie ciagłości materiału dowodowego na portalach społecznościowych bez utraty widoku analizowanego posta.
-
-### 7. Konfiguracja i Zarządzanie Wykluczeniami
-- Konfiguracja reguł wykluczeń zaufanych domen (*.gov.pl, policja.pl, zus.pl) oraz zakresów IP infrastruktury WAF/CDN.
-- Korzyść operacyjna: Eliminacja fałszywych alarmów (False Positives) dla domen instytucji publicznych i dostawców infrastruktury oraz dopasowanie rozszerzenia do wytycznych operacyjnych zespołu.
-
-< PLACEHOLDER: Panel konfiguracji i zarządzania wykluczeniami oraz bazą ostrzeżeń >
+PhishTackle to rozszerzenie przeglądarkowe (dostępne dla Firefox oraz Chrome Manifest V3) zaprojektowane dla analityków bezpieczeństwa, zespołów CSIRT/SOC oraz Threat Intelligence. Narzędzie automatyzuje detekcję, inspekcję i rejestrację złośliwych domen, wspierając pozyskiwanie wskaźników kompromitacji (IoC).
 
 ---
 
-## Skróty Operacyjne
-- Alt+Shift+A: Przełączanie widoczności okna wtyczki (Popup) z poziomu dowolnej karty przeglądarki. Możliwość modyfikacji w menedżerze skrótów przeglądarki (about:addons).
+## ⚡ Skróty Klawiszowe
+
+- **`Alt + Shift + Q`** (macOS: **`Command + Shift + Q`**) — Błyskawiczne otwarcie okna popupu inspekcyjnego wtyczki z poziomu dowolnej karty.
+- *Uwaga: Skrót można dostosować w menedżerze skrótów przeglądarki (`about:addons` / `chrome://extensions/shortcuts`).*
+
+---
+
+## 🔄 Ogólny Workflow Operacyjny
+
+1. **Rekonesans & Detekcja**: Analysis wyników wyszukiwania w Google, rezultatów skanowań na URLScan.io lub bezpośrednia wizyta na badanej stronie.
+2. **Automatyczna Weryfikacja & Pobieranie Contextu**:
+   - Porównanie domeny z lokalną bazą ostrzeżeń `hole.cert.pl`.
+   - Resolwowanie adresu IP poprzez Google DoH (DNS-over-HTTPS).
+   - Identyfikacja dostawcy hostingu / WAF / CDN (poprzez API IPWhois).
+   - Pobieranie oraz walidacja certyfikatu SSL (CertSpotter / CRT.sh / TLS Probe).
+3. **Kwalifikacja & Masowe Zgłaszanie**: Wybór kategorii (np. *Fałszywe inwestycje*, *Bankowość*, *Phishing*) i dodanie domeny do aktywnej kolejki z poziomu popupu lub paska Google Search Assistant.
+4. **Strukturyzacja IoC**: Wgląd w 3-kolumnową tabelę zgłoszeń (Domena, Adres IP, Dostawca/WAF).
+5. **Eksport Wskaźników**: Jednoklikowe kopiowanie czystych domen lub zdeduplikowanych adresów IP (po enterach `\n`) do zasilenia systemów SIEM, EDR, Firewall lub przekazania do CERT.pl.
+6. **Archiwizacja**: Przeniesienie obsłużonych wskaźników do zakładki **Archive** z zachowaniem historii i dat.
+
+---
+
+## 🧩 Stan Funkcjonalności (Feature Status)
+
+### 🟢 Wdrożone i Gotowe (Production Ready)
+
+- **Lokalna Baza Ostrzeżeń CERT.pl**:
+  - Praca na lokalnym cache (>130 000 domen z `hole.cert.pl`) – brak wycieku zapytań DNS w trakcie rekonesansu.
+  - Automatyczne odświeżanie w tle (alarmy) oraz ręczny przycisk odświeżenia.
+- **Google Search Assistant**:
+  - Wstrzykiwanie odznak statusu (`BLOCKED`, `ON LIST`) przy wynikach wyszukiwania.
+  - Pusty pask akcji (`#phishtackle-action-bar`) do masowego zaznaczania domen i zgłaszania ich do kolejki.
+  - Dekodowanie i czyszczenie linków przekierowujących z reklam i wyników.
+- **URLScan Assistant & SSL Fallback Engine**:
+  - Przycisk szybkiego otwarcia przekierowania URLScan w jaskrawoniebieskim kolorze (`#2563eb`).
+  - 4-warstwowy mechanizm pobierania certyfikatów SSL (CertSpotter API, CertSpotter Apex Lookup dla certyfikatów wildcard `*.domain.com`, CRT.sh API oraz bezpośredni TLS HEAD Probe).
+- **Live Inspector Popupu**:
+  - Błyskawiczny odczyt aktywnego adresu IP oraz dostawcy (ISP / WAF / CDN).
+  - Wyświetlanie wydawcy certyfikatu SSL, dni ważności oraz statusu szyfrowania.
+  - Automatyczne odświeżanie treści popupu na żywo bez konieczności jego ponownego otwierania.
+- **Zaawansowany Panel Raportów (`Reports View`)**:
+  - Tabela 3-kolumnowa: **Domena / Link**, **Adres IP**, **Dostawca / WAF**.
+  - Dedykowane przyciski eksportu: **Copy Domains** (czyste domeny) oraz **Copy IPs** (zdeduplikowane adresy IP po enterach).
+  - Zakładka **Archive** z tabelą historii archiwizacji, datą oraz informacją o kategorii.
+  - Zabezpieczenie dwustopniowe (*"Are you sure?"*) dla przycisków czyszczenia bazy.
+- **Brak Sztywnych Sufiksów TLD**:
+  - Uniwersalny parser nazw domen oparty na strukturze domenowej bez używania sztywnych tablic TLD.
+
+---
+
+### 🟡 W Trakcie Realizacji / Eksperymentalne (Beta & Optional)
+
+- **Facebook Refresh Blocker `[BETA]`**:
+  - Blokowanie automatycznego przeładowywania i odświeżania aktualności na portalu Facebook w trakcie analizy (domyślnie wyłączone).
+- **Ochrona Pobierania Plików (Download Protection)**:
+  - Przechwytywanie pobieranych plików z opcją automatycznej izolacji (zmiana rozszerzenia na `.sample`, domyślnie wyłączona).
+- **Ochrona Schowka (Clipboard Protection)**:
+  - Wykrywanie prób nieautoryzowanego podmieniania treści schowka (Clipboard Hijacking, domyślnie wyłączona).
+
+---
+
+## 🛠️ Zgłaszanie Uwag i Błędów
+
+Narzędzie rozwijane jest z myślą o maksymalnej automatyzacji pracy analityków bezpieczeństwa. Jeśli napotkasz błąd, masz uwagę dotyczącą działania wtyczki lub pomysł na nową funkcjonalność:
+
+1. **Utwórz Issue** w repozytorium projektu na GitHubie.
+2. Opisz krótko przypadek (oraz załącz ew. zrzut ekranu lub błąd z konsoli tła `Service Worker`).
+3. Mile widziane Pull Requesty z poprawkami i nowymi usprawnieniami!
