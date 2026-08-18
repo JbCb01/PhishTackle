@@ -729,62 +729,177 @@ async function getDomainSslFromStorage(domain) {
   return null;
 }
 
-/** Fetches SSL Certificate info from Certificate Transparency (CRT.sh) API for Chrome compatibility. */
+/** Fetches SSL Certificate info using 4-Layer Fallback System for Chrome compatibility (Clean, no hardcoded TLD lists). */
 async function fetchSslFromCtApi(domain) {
   if (!domain) return null;
   const cleanDom = domain.trim().toLowerCase().replace(/^www\./, '');
+  const parts = cleanDom.split('.');
+  const apexDom = parts.length > 2 ? parts.slice(-2).join('.') : cleanDom;
+
+  // 1. Primary Layer: CertSpotter API (Direct domain with wildcard matching)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    const res = await fetch(`https://api.certspotter.com/v1/issuances?domain=${encodeURIComponent(cleanDom)}&match_subdomains=true&expand=dns_names&expand=issuer`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const issuances = await res.json();
+      if (Array.isArray(issuances) && issuances.length > 0) {
+        const latest = issuances.sort((a, b) => new Date(b.not_after || 0).getTime() - new Date(a.not_after || 0).getTime())[0];
+        if (latest) {
+          const rawIssuer = latest.issuer?.name || latest.issuer?.organization_name || 'Unknown Issuer';
+          const rawSubject = (latest.dns_names && latest.dns_names[0]) || cleanDom;
+          const issuer = extractCleanIssuer(rawIssuer);
+          const subject = extractCleanSubject(rawSubject);
+          const validFrom = latest.not_before ? new Date(latest.not_before).getTime() : null;
+          const validTo = latest.not_after ? new Date(latest.not_after).getTime() : null;
+          const daysRemaining = validTo ? Math.ceil((validTo - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+
+          return {
+            domain: cleanDom,
+            secure: true,
+            state: 'secure',
+            issuer,
+            rawIssuer,
+            subject,
+            rawSubject,
+            validFrom,
+            validTo,
+            daysRemaining,
+            source: 'certspotter_api',
+            timestamp: Date.now()
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[PhishTackle SSL] Primary CertSpotter API query failed for ${cleanDom}:`, err.message);
+  }
+
+  // 2. Secondary Layer: CertSpotter Apex Domain Query (For wildcard / parent domain certs)
+  if (apexDom !== cleanDom) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+      const res = await fetch(`https://api.certspotter.com/v1/issuances?domain=${encodeURIComponent(apexDom)}&match_subdomains=true&expand=dns_names&expand=issuer`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const issuances = await res.json();
+        if (Array.isArray(issuances) && issuances.length > 0) {
+          const latest = issuances.sort((a, b) => new Date(b.not_after || 0).getTime() - new Date(a.not_after || 0).getTime())[0];
+          if (latest) {
+            const rawIssuer = latest.issuer?.name || latest.issuer?.organization_name || 'Unknown Issuer';
+            const rawSubject = (latest.dns_names && latest.dns_names[0]) || cleanDom;
+            const issuer = extractCleanIssuer(rawIssuer);
+            const subject = extractCleanSubject(rawSubject);
+            const validFrom = latest.not_before ? new Date(latest.not_before).getTime() : null;
+            const validTo = latest.not_after ? new Date(latest.not_after).getTime() : null;
+            const daysRemaining = validTo ? Math.ceil((validTo - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+
+            return {
+              domain: cleanDom,
+              secure: true,
+              state: 'secure',
+              issuer,
+              rawIssuer,
+              subject,
+              rawSubject,
+              validFrom,
+              validTo,
+              daysRemaining,
+              source: 'certspotter_apex_api',
+              timestamp: Date.now()
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[PhishTackle SSL] Secondary CertSpotter Apex API failed for ${apexDom}:`, err.message);
+    }
+  }
+
+  // 3. Tertiary Layer: CRT.sh API
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
     const res = await fetch(`https://crt.sh/?q=${encodeURIComponent(cleanDom)}&output=json`, {
       signal: controller.signal
     });
     clearTimeout(timeoutId);
 
-    if (!res.ok) return null;
-    const certs = await res.json();
-    if (!Array.isArray(certs) || certs.length === 0) return null;
+    if (res.ok) {
+      const certs = await res.json();
+      if (Array.isArray(certs) && certs.length > 0) {
+        const latestCert = certs.sort((a, b) => new Date(b.not_after || 0).getTime() - new Date(a.not_after || 0).getTime())[0];
+        if (latestCert) {
+          const rawIssuer = latestCert.issuer_name || 'Unknown Issuer';
+          const rawSubject = latestCert.name_value || latestCert.common_name || cleanDom;
+          const issuer = extractCleanIssuer(rawIssuer);
+          const subject = extractCleanSubject(rawSubject);
+          const validFrom = latestCert.not_before ? new Date(latestCert.not_before).getTime() : null;
+          const validTo = latestCert.not_after ? new Date(latestCert.not_after).getTime() : null;
+          const daysRemaining = validTo ? Math.ceil((validTo - Date.now()) / (1000 * 60 * 60 * 24)) : null;
 
-    // Pick the most recent valid certificate entry
-    const latestCert = certs.sort((a, b) => {
-      const dateA = new Date(a.not_after || 0).getTime();
-      const dateB = new Date(b.not_after || 0).getTime();
-      return dateB - dateA;
-    })[0];
-
-    if (!latestCert) return null;
-
-    const rawIssuer = latestCert.issuer_name || 'Unknown Issuer';
-    const rawSubject = latestCert.name_value || latestCert.common_name || cleanDom;
-
-    const issuer = extractCleanIssuer(rawIssuer);
-    const subject = extractCleanSubject(rawSubject);
-
-    const validFrom = latestCert.not_before ? new Date(latestCert.not_before).getTime() : null;
-    const validTo = latestCert.not_after ? new Date(latestCert.not_after).getTime() : null;
-    let daysRemaining = null;
-    if (validTo) {
-      daysRemaining = Math.ceil((validTo - Date.now()) / (1000 * 60 * 60 * 24));
+          return {
+            domain: cleanDom,
+            secure: true,
+            state: 'secure',
+            issuer,
+            rawIssuer,
+            subject,
+            rawSubject,
+            validFrom,
+            validTo,
+            daysRemaining,
+            source: 'crt_sh_api',
+            timestamp: Date.now()
+          };
+        }
+      }
     }
+  } catch (err) {
+    console.warn(`[PhishTackle SSL] Tertiary CRT.sh API failed for ${cleanDom}:`, err.message);
+  }
+
+  // 4. Quaternary Layer: Direct Browser Network TLS Probe (Guaranteed Browser TLS verification)
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    await fetch(`https://${cleanDom}`, {
+      method: 'HEAD',
+      mode: 'no-cors',
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
 
     return {
       domain: cleanDom,
       secure: true,
       state: 'secure',
-      issuer,
-      rawIssuer,
-      subject,
-      rawSubject,
-      validFrom,
-      validTo,
-      daysRemaining,
-      source: 'ct_logs_api',
+      issuer: 'Verified HTTPS (TLS Handshake)',
+      rawIssuer: 'Verified HTTPS (Browser TLS Handshake)',
+      subject: cleanDom,
+      rawSubject: cleanDom,
+      validFrom: null,
+      validTo: null,
+      daysRemaining: null,
+      source: 'tls_probe',
       timestamp: Date.now()
     };
   } catch (err) {
-    console.warn(`[PhishTackle CT API] Could not fetch CT logs for ${domain}:`, err.message);
+    console.warn(`[PhishTackle SSL] Quaternary TLS Probe failed for ${cleanDom}:`, err.message);
   }
+
   return null;
 }
 
@@ -1049,9 +1164,9 @@ async function getSettings() {
     refreshHours: storedSettings.refreshHours || 1,
     googleSearchCheckboxes: storedSettings.googleSearchCheckboxes !== false,
     urlscanAssistant: storedSettings.urlscanAssistant !== false,
-    facebookPreventRefresh: storedSettings.facebookPreventRefresh !== false,
-    downloadProtection: storedSettings.downloadProtection !== false,
-    clipboardProtection: storedSettings.clipboardProtection !== false
+    facebookPreventRefresh: storedSettings.facebookPreventRefresh === true,
+    downloadProtection: storedSettings.downloadProtection === true,
+    clipboardProtection: storedSettings.clipboardProtection === true
   };
 }
 

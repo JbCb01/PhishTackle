@@ -1,5 +1,5 @@
 /**
- * Google Search Checkboxes - Chrome Content Script (Production Build)
+ * Google Search Checkboxes - Chrome Content Script
  */
 
 (function () {
@@ -21,7 +21,7 @@
   // DOM & Checkbox Elements
   // ==========================================
 
-  /** Builds wrapper element containing checkbox and badge. */
+  /** Builds wrapper element containing checkbox and status badge. */
   function buildCheckboxWrap(domain, resultUrl) {
     const status = getDomainStatus(domain);
 
@@ -30,7 +30,10 @@
     wrap.dataset.domain = domain || '';
     wrap.dataset.url = resultUrl || '';
 
-    wrap.addEventListener('click', (e) => e.stopPropagation());
+    wrap.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setTimeout(updateActionBar, 0);
+    });
     wrap.addEventListener('mousedown', (e) => e.stopPropagation());
 
     const cb = document.createElement('input');
@@ -40,10 +43,12 @@
     cb.dataset.domain = domain || '';
     cb.dataset.url = resultUrl || '';
 
-    cb.addEventListener('click', (e) => e.stopPropagation());
-    cb.addEventListener('mousedown', (e) => e.stopPropagation());
+    cb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setTimeout(updateActionBar, 0);
+    });
     cb.addEventListener('change', updateActionBar);
-    cb.addEventListener('click', () => setTimeout(updateActionBar, 10));
+    cb.addEventListener('mousedown', (e) => e.stopPropagation());
 
     if (status.onCertList) cb.classList.add('phishtackle-cb--cert');
     else if (status.onLocalList) cb.classList.add('phishtackle-cb--local');
@@ -96,6 +101,8 @@
 
   /** Finds the target search result anchor link pointing to a NON-Google domain. */
   function findResultAnchor(h3) {
+    const card = h3.closest('.yuRUbf, .g, .MjjYud, div[data-hveid], div[data-ved], div[data-snc]') || h3.parentElement;
+
     const candidates = [
       h3.closest('a[href]'),
       h3.querySelector('a[href]'),
@@ -103,7 +110,6 @@
       h3.parentElement?.querySelector('a[href]')
     ];
 
-    const card = h3.closest('.yuRUbf, .g, .MjjYud, div[data-hveid], div[data-ved], div[data-snc]');
     if (card) {
       card.querySelectorAll('a[href]').forEach(a => candidates.push(a));
     }
@@ -120,6 +126,7 @@
         return { anchor: a, rawHref, resolvedUrl, domain };
       }
     }
+
     return null;
   }
 
@@ -192,17 +199,48 @@
   // Bottom Action Bar UI
   // ==========================================
 
-  /** Retrieves selected domains from checked checkboxes. */
+  /** Retrieves selected domains from checked checkboxes. Resolves domain dynamically if needed. */
   function getCheckedDomains() {
     const seen = new Set();
     const checked = [];
-    document.querySelectorAll('.phishtackle-cb:checked').forEach(cb => {
-      const { domain, url } = cb.dataset;
-      if (domain && !seen.has(domain)) {
+    const checkedCbs = Array.from(document.querySelectorAll('.phishtackle-cb:checked'));
+
+    checkedCbs.forEach(cb => {
+      let domain = cb.dataset.domain;
+      let url = cb.dataset.url;
+
+      if (!domain || isGoogleDomain(domain)) {
+        domain = extractCleanDomain(url);
+      }
+
+      // Dynamic fallback: resolve from parent card if dataset had empty domain
+      if (!domain || isGoogleDomain(domain)) {
+        const wrap = cb.closest('.phishtackle-wrap');
+        const card = wrap?.closest('.yuRUbf, .g, .MjjYud, div[data-hveid]') || wrap?.parentElement;
+        if (card) {
+          const anchors = Array.from(card.querySelectorAll('a[href]'));
+          for (const a of anchors) {
+            const rawHref = a.getAttribute('href') || a.href;
+            if (!rawHref || rawHref.startsWith('javascript:') || rawHref === '#') continue;
+            const resUrl = resolveGoogleUrl(rawHref);
+            const dom = extractCleanDomain(resUrl);
+            if (dom && !isGoogleDomain(dom)) {
+              domain = dom;
+              url = resUrl;
+              cb.dataset.domain = dom;
+              cb.dataset.url = resUrl;
+              break;
+            }
+          }
+        }
+      }
+
+      if (domain && !isGoogleDomain(domain) && !seen.has(domain)) {
         seen.add(domain);
-        checked.push({ domain, url });
+        checked.push({ domain, url: url || `https://${domain}` });
       }
     });
+
     return checked;
   }
 
@@ -212,6 +250,7 @@
 
     actionBar = document.createElement('div');
     actionBar.id = 'phishtackle-action-bar';
+    actionBar.style.cssText = 'position: fixed !important; bottom: 24px !important; left: 50% !important; transform: translateX(-50%) !important; z-index: 2147483647 !important; background: #1c1f2e !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; border-radius: 10px !important; padding: 10px 18px !important; display: flex !important; align-items: center !important; gap: 12px !important; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important; font-family: system-ui, -apple-system, sans-serif !important; font-size: 13px !important; color: #e8eaf0 !important; visibility: visible !important; opacity: 1 !important;';
 
     const catOptions = categories
       .map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`)
@@ -234,22 +273,39 @@
     });
   }
 
-  /** Updates or hides bottom action bar based on current selections. */
+  /** Hides bottom action bar. */
+  function hideActionBar() {
+    if (!actionBar) return;
+    actionBar.classList.add('phishtackle-bar--hiding');
+    setTimeout(() => {
+      const checkedCbs = Array.from(document.querySelectorAll('.phishtackle-cb:checked'));
+      if (actionBar && checkedCbs.length === 0) {
+        actionBar.remove();
+        actionBar = null;
+      }
+    }, 200);
+  }
+
+  /** Updates or hides bottom action bar based on current selections. Guaranteed execution based on checked checkbox count. */
   function updateActionBar() {
-    const checked = getCheckedDomains();
-    if (checked.length > 0) {
-      if (!actionBar) showActionBar();
+    const checkedCbs = Array.from(document.querySelectorAll('.phishtackle-cb:checked'));
+
+    if (checkedCbs.length === 0) {
+      hideActionBar();
+      return;
+    }
+
+    if (!actionBar) {
+      showActionBar();
+    }
+
+    if (actionBar) {
+      actionBar.style.display = 'flex';
+      actionBar.style.visibility = 'visible';
+      actionBar.style.opacity = '1';
       actionBar.classList.remove('phishtackle-bar--hiding');
       const countEl = document.getElementById('phishtackle-bar-count-num');
-      if (countEl) countEl.textContent = checked.length;
-    } else if (actionBar) {
-      actionBar.classList.add('phishtackle-bar--hiding');
-      setTimeout(() => {
-        if (actionBar && getCheckedDomains().length === 0) {
-          actionBar.remove();
-          actionBar = null;
-        }
-      }, 200);
+      if (countEl) countEl.textContent = checkedCbs.length;
     }
   }
 
@@ -313,12 +369,20 @@
   // Domain Helpers & Initialization
   // ==========================================
 
-  /** Extracts hostname from URL. */
+  /** Extracts hostname cleanly from URL, stripping breadcrumbs and invalid characters. */
   function extractCleanDomain(rawUrl) {
     if (!rawUrl || typeof rawUrl !== 'string') return null;
     try {
-      const urlToParse = /^https?:\/\//i.test(rawUrl) ? rawUrl : 'https://' + rawUrl;
+      let str = rawUrl.trim();
+      str = str.replace(/[›>]/g, ' ').trim();
+      if (str.includes(' ')) {
+        str = str.split(/\s+/)[0];
+      }
+
+      const urlToParse = /^https?:\/\//i.test(str) ? str : 'https://' + str;
       let host = new URL(urlToParse).hostname.toLowerCase();
+      host = host.replace(/[^a-z0-9.-]/g, '');
+      if (!host || !host.includes('.')) return null;
       return host.startsWith('www.') ? host.slice(4) : host;
     } catch {
       return null;

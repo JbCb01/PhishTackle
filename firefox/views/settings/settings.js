@@ -85,15 +85,15 @@ async function loadSettings() {
     }
 
     if (facebookPreventRefreshToggle) {
-      facebookPreventRefreshToggle.checked = settings.facebookPreventRefresh !== false;
+      facebookPreventRefreshToggle.checked = settings.facebookPreventRefresh === true;
     }
 
     if (downloadProtectionToggle) {
-      downloadProtectionToggle.checked = settings.downloadProtection !== false;
+      downloadProtectionToggle.checked = settings.downloadProtection === true;
     }
 
     if (clipboardProtectionToggle) {
-      clipboardProtectionToggle.checked = settings.clipboardProtection !== false;
+      clipboardProtectionToggle.checked = settings.clipboardProtection === true;
     }
 
     if (settings.categories?.length > 0) {

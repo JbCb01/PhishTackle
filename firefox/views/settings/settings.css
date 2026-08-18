@@ -400,3 +400,17 @@ body {
   color: var(--status-danger);
   background: rgba(248, 113, 113, 0.1);
 }
+
+.settings-badge--beta {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  padding: 1px 6px !important;
+  border-radius: 4px !important;
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border: 1px solid #1d4ed8 !important;
+  margin-left: 6px !important;
+  vertical-align: middle !important;
+  display: inline-block !important;
+  letter-spacing: 0.5px !important;
+}

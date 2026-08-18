@@ -1001,9 +1001,9 @@ async function getSettings() {
     refreshHours: storedSettings.refreshHours || 1,
     googleSearchCheckboxes: storedSettings.googleSearchCheckboxes !== false,
     urlscanAssistant: storedSettings.urlscanAssistant !== false,
-    facebookPreventRefresh: storedSettings.facebookPreventRefresh !== false,
-    downloadProtection: storedSettings.downloadProtection !== false,
-    clipboardProtection: storedSettings.clipboardProtection !== false
+    facebookPreventRefresh: storedSettings.facebookPreventRefresh === true,
+    downloadProtection: storedSettings.downloadProtection === true,
+    clipboardProtection: storedSettings.clipboardProtection === true
   };
 }
 

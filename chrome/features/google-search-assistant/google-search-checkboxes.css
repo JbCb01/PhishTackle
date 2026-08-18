@@ -1,143 +1,145 @@
 .phishtackle-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-right: 6px;
-  vertical-align: middle;
-  cursor: default;
-  user-select: none;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  margin-right: 6px !important;
+  vertical-align: middle !important;
+  cursor: default !important;
+  user-select: none !important;
 }
 
 .phishtackle-cb {
-  width: 15px;
-  height: 15px;
-  cursor: pointer;
-  accent-color: #5b8af5;
-  vertical-align: middle;
+  width: 15px !important;
+  height: 15px !important;
+  cursor: pointer !important;
+  accent-color: #5b8af5 !important;
+  vertical-align: middle !important;
 }
 
 .phishtackle-badge {
-  font-size: 9px;
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 3px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  line-height: 1.2;
-  font-family: system-ui, -apple-system, sans-serif;
-  vertical-align: middle;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  padding: 1px 5px !important;
+  border-radius: 3px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  line-height: 1.2 !important;
+  font-family: system-ui, -apple-system, sans-serif !important;
+  vertical-align: middle !important;
 }
 
 .phishtackle-badge--cert {
-  background: rgba(248, 113, 113, 0.2);
-  color: #f87171;
-  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.2) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(248, 113, 113, 0.4) !important;
 }
 
 .phishtackle-badge--local {
-  background: rgba(251, 191, 36, 0.2);
-  color: #fbbf24;
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: rgba(251, 191, 36, 0.2) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(251, 191, 36, 0.4) !important;
 }
 
 #phishtackle-action-bar {
-  position: fixed;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 999999;
-  background: #1c1f2e;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  padding: 10px 18px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-  font-family: system-ui, -apple-system, sans-serif;
-  font-size: 13px;
-  color: #e8eaf0;
-  animation: phishtackleBarSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  position: fixed !important;
+  bottom: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 2147483647 !important;
+  background: #1c1f2e !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 10px !important;
+  padding: 10px 18px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+  font-family: system-ui, -apple-system, sans-serif !important;
+  font-size: 13px !important;
+  color: #e8eaf0 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  animation: phishtackleBarSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 #phishtackle-action-bar.phishtackle-bar--hiding {
-  animation: phishtackleBarSlideDown 0.2s ease forwards;
+  animation: phishtackleBarSlideDown 0.2s ease forwards !important;
 }
 
 .phishtackle-bar__icon {
-  font-size: 16px;
+  font-size: 16px !important;
 }
 
 .phishtackle-bar__count {
-  font-weight: 600;
-  color: #e8eaf0;
+  font-weight: 600 !important;
+  color: #e8eaf0 !important;
 }
 
 .phishtackle-bar__count span {
-  color: #5b8af5;
+  color: #5b8af5 !important;
 }
 
 .phishtackle-bar__select {
-  padding: 5px 10px;
-  font-size: 12px;
-  color: #e8eaf0;
-  background: #12141e;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 6px;
-  outline: none;
-  cursor: pointer;
+  padding: 5px 10px !important;
+  font-size: 12px !important;
+  color: #e8eaf0 !important;
+  background: #12141e !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 6px !important;
+  outline: none !important;
+  cursor: pointer !important;
 }
 
 .phishtackle-bar__btn {
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #fff;
-  background: #5b8af5;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 150ms ease;
+  padding: 6px 14px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+  background: #5b8af5 !important;
+  border: none !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 150ms ease !important;
 }
 
 .phishtackle-bar__btn:hover {
-  background: #7ba2ff;
+  background: #7ba2ff !important;
 }
 
 .phishtackle-bar__btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
 }
 
 .phishtackle-bar__dismiss {
-  padding: 6px 10px;
-  font-size: 12px;
-  color: #8b90a5;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: color 150ms ease;
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+  color: #8b90a5 !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  transition: color 150ms ease !important;
 }
 
 .phishtackle-bar__dismiss:hover {
-  color: #e8eaf0;
+  color: #e8eaf0 !important;
 }
 
 .phishtackle-bar__feedback {
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 4px;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
 }
 
 .phishtackle-bar__feedback--success {
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.12);
+  color: #34d399 !important;
+  background: rgba(52, 211, 153, 0.12) !important;
 }
 
 .phishtackle-bar__feedback--error {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.12);
+  color: #f87171 !important;
+  background: rgba(248, 113, 113, 0.12) !important;
 }
 
 @keyframes phishtackleBarSlideUp {
