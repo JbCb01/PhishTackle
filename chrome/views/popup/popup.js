@@ -418,10 +418,10 @@ async function handleAddReport() {
       action: 'addReport',
       url: currentTabUrl,
       category,
-      force: isAddAgainMode
+      force: true
     });
 
-    if (response.added > 0 || response.existingDate) {
+    if (response.added > 0 || response.skipped >= 0) {
       btnAddReportEl.className = 'btn-report-add btn-report-add--success';
       btnAddReportEl.innerHTML = '<span>Domain Added</span>';
 
@@ -432,7 +432,7 @@ async function handleAddReport() {
         btnAddReportEl.innerHTML = '<span>Add Again</span>';
         btnAddReportEl.disabled = false;
         reportCategorySelect.disabled = false;
-      }, 3000);
+      }, 2500);
     } else {
       btnAddReportEl.className = 'btn-report-add';
       btnAddReportEl.innerHTML = '<span>Could not add</span>';
