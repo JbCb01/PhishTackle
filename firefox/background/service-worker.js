@@ -218,7 +218,7 @@ async function handleMessage(message) {
       const results = domains.map(rawDomain => {
         const cleanDomain = normalizeDomain(extractDomain(rawDomain) || cleanUrl(rawDomain) || rawDomain);
         const onCertList = !!findDomainInList(cleanDomain, domainMap);
-        const dupDate = findUrlDuplicateDate(cleanDomain, reportedUrls, reportedSessions);
+        const dupDate = findUrlInLocalReports(cleanDomain, reportedUrls, reportedSessions);
         return {
           domain: rawDomain,
           cleanDomain,
@@ -231,47 +231,35 @@ async function handleMessage(message) {
     }
 
     case 'addReport': {
-      const { url: reportUrl, category: reportCat, date: targetDate, force = false } = message;
+      const { url: reportUrl, category: reportCat, force = false } = message;
       if (!reportUrl || !reportCat) return { added: 0, skipped: 0, existingDate: null };
 
-      await maybeRolloverDay();
-      const today = getTodayDate();
-      const storage = await chrome.storage.local.get(['reported_urls', 'reported_sessions']);
+      const storage = await chrome.storage.local.get(['reported_urls', 'archived_reports']);
       const reportedUrls = storage.reported_urls || {};
-      const reportedSessions = storage.reported_sessions || {};
+      const archivedReports = storage.archived_reports || [];
       const cleanDom = normalizeDomain(extractDomain(reportUrl) || cleanUrl(reportUrl));
 
-      const existingDate = findUrlDuplicateDate(cleanDom, reportedUrls, reportedSessions);
-      if (existingDate && !force) {
-        return { added: 0, skipped: 1, existingDate: existingDate === 'today' ? today : existingDate };
+      const isDuplicate = checkReportDuplicate(cleanDom, reportedUrls, archivedReports);
+      if (isDuplicate && !force) {
+        return { added: 0, skipped: 1 };
       }
 
-      const rawUrlToStore = preserveFullUrl(reportUrl);
-
-      if (targetDate && targetDate !== today) {
-        if (!reportedSessions[targetDate]) reportedSessions[targetDate] = {};
-        if (!reportedSessions[targetDate][reportCat]) reportedSessions[targetDate][reportCat] = [];
-        reportedSessions[targetDate][reportCat].push(rawUrlToStore);
-        await chrome.storage.local.set({ reported_sessions: reportedSessions });
-      } else {
-        if (!reportedUrls[reportCat]) reportedUrls[reportCat] = [];
-        reportedUrls[reportCat].push(rawUrlToStore);
-        await chrome.storage.local.set({ reported_urls: reportedUrls });
-      }
+      const item = await enrichReportItem(reportUrl);
+      if (!reportedUrls[reportCat]) reportedUrls[reportCat] = [];
+      reportedUrls[reportCat].push(item);
+      await chrome.storage.local.set({ reported_urls: reportedUrls });
 
       chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
-      return { added: 1, skipped: 0, existingDate: null };
+      return { added: 1, skipped: 0 };
     }
 
     case 'addMultipleToReport': {
       const { urls = [], category = 'other' } = message;
       if (!urls.length || !category) return { added: 0, skipped: 0, duplicates: [] };
 
-      await maybeRolloverDay();
-      const today = getTodayDate();
-      const storage = await chrome.storage.local.get(['reported_urls', 'reported_sessions']);
+      const storage = await chrome.storage.local.get(['reported_urls', 'archived_reports']);
       const reportedUrls = storage.reported_urls || {};
-      const reportedSessions = storage.reported_sessions || {};
+      const archivedReports = storage.archived_reports || [];
       if (!reportedUrls[category]) reportedUrls[category] = [];
 
       let added = 0, skipped = 0;
@@ -279,18 +267,13 @@ async function handleMessage(message) {
 
       for (const url of urls) {
         const cleanDom = normalizeDomain(extractDomain(url) || cleanUrl(url));
-        const dupDate = findUrlDuplicateDate(cleanDom, reportedUrls, reportedSessions);
-        if (dupDate) {
+        if (checkReportDuplicate(cleanDom, reportedUrls, archivedReports)) {
           skipped++;
-          duplicates.push({ url, date: dupDate === 'today' ? today : dupDate });
+          duplicates.push({ url });
         } else {
-          const rawUrlToStore = preserveFullUrl(url);
-          if (!reportedUrls[category].includes(rawUrlToStore)) {
-            reportedUrls[category].push(rawUrlToStore);
-            added++;
-          } else {
-            skipped++;
-          }
+          const item = await enrichReportItem(url);
+          reportedUrls[category].push(item);
+          added++;
         }
       }
 
@@ -301,39 +284,106 @@ async function handleMessage(message) {
       return { added, skipped, duplicates };
     }
 
-    case 'getReportedSessions': {
-      const data = await chrome.storage.local.get(['reported_urls', 'reported_sessions', 'reported_date']);
+    case 'getReportedSessions':
+    case 'getReportsData': {
+      const data = await chrome.storage.local.get(['reported_urls', 'archived_reports']);
       return {
-        currentDate: data.reported_date || getTodayDate(),
-        currentUrls: data.reported_urls || {},
-        sessions: data.reported_sessions || {}
+        activeQueue: data.reported_urls || {},
+        archivedReports: data.archived_reports || []
       };
     }
 
-    case 'deleteSessionEntry': {
-      const { date: delDate, category: delCat, url: delUrl } = message;
-      if (!delDate || !delCat || !delUrl) return { success: false };
+    case 'archiveItems': {
+      const { ids, category, archiveAll = false } = message;
+      const data = await chrome.storage.local.get(['reported_urls', 'archived_reports']);
+      const reportedUrls = data.reported_urls || {};
+      let archivedReports = data.archived_reports || [];
 
-      const data = await chrome.storage.local.get(['reported_urls', 'reported_sessions', 'reported_date']);
-      const currentDate = data.reported_date || getTodayDate();
+      let itemsToArchive = [];
 
-      if (delDate === currentDate) {
-        const reportedUrls = data.reported_urls || {};
-        if (reportedUrls[delCat]) {
-          reportedUrls[delCat] = reportedUrls[delCat].filter(u => u !== delUrl && cleanUrl(u) !== cleanUrl(delUrl));
-          if (reportedUrls[delCat].length === 0) delete reportedUrls[delCat];
+      if (archiveAll) {
+        for (const cat of Object.keys(reportedUrls)) {
+          const list = reportedUrls[cat] || [];
+          list.forEach(item => {
+            const normalized = typeof item === 'string' ? { id: `rep_${Date.now()}_${Math.random()}`, url: item, domain: cleanUrl(item), ip: '-', provider: '-' } : item;
+            itemsToArchive.push({ ...normalized, category: cat, archivedAt: Date.now() });
+          });
         }
-        await chrome.storage.local.set({ reported_urls: reportedUrls });
-      } else {
-        const sessions = data.reported_sessions || {};
-        if (sessions[delDate]?.[delCat]) {
-          sessions[delDate][delCat] = sessions[delDate][delCat].filter(u => u !== delUrl && cleanUrl(u) !== cleanUrl(delUrl));
-          if (sessions[delDate][delCat].length === 0) delete sessions[delDate][delCat];
-          if (Object.keys(sessions[delDate]).length === 0) delete sessions[delDate];
+        await chrome.storage.local.set({ reported_urls: {}, archived_reports: [...archivedReports, ...itemsToArchive] });
+      } else if (category && reportedUrls[category]) {
+        const list = reportedUrls[category] || [];
+        list.forEach(item => {
+          const normalized = typeof item === 'string' ? { id: `rep_${Date.now()}_${Math.random()}`, url: item, domain: cleanUrl(item), ip: '-', provider: '-' } : item;
+          itemsToArchive.push({ ...normalized, category, archivedAt: Date.now() });
+        });
+        delete reportedUrls[category];
+        await chrome.storage.local.set({ reported_urls: reportedUrls, archived_reports: [...archivedReports, ...itemsToArchive] });
+      } else if (Array.isArray(ids) && ids.length > 0) {
+        const idSet = new Set(ids);
+        for (const cat of Object.keys(reportedUrls)) {
+          const remaining = [];
+          (reportedUrls[cat] || []).forEach(item => {
+            const itemId = typeof item === 'string' ? item : item.id;
+            if (idSet.has(itemId) || idSet.has(item.url)) {
+              const normalized = typeof item === 'string' ? { id: `rep_${Date.now()}_${Math.random()}`, url: item, domain: cleanUrl(item), ip: '-', provider: '-' } : item;
+              itemsToArchive.push({ ...normalized, category: cat, archivedAt: Date.now() });
+            } else {
+              remaining.push(item);
+            }
+          });
+          reportedUrls[cat] = remaining;
+          if (reportedUrls[cat].length === 0) delete reportedUrls[cat];
         }
-        await chrome.storage.local.set({ reported_sessions: sessions });
+        await chrome.storage.local.set({ reported_urls: reportedUrls, archived_reports: [...archivedReports, ...itemsToArchive] });
       }
 
+      chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
+      return { success: true, count: itemsToArchive.length };
+    }
+
+    case 'deleteReportEntry':
+    case 'deleteSessionEntry': {
+      const { id: delId, category: delCat, url: delUrl, isArchive = false } = message;
+      const data = await chrome.storage.local.get(['reported_urls', 'archived_reports']);
+
+      if (isArchive) {
+        let archived = data.archived_reports || [];
+        archived = archived.filter(item => item.id !== delId && item.url !== delUrl && item.domain !== delUrl);
+        await chrome.storage.local.set({ archived_reports: archived });
+      } else {
+        const reportedUrls = data.reported_urls || {};
+        if (delCat && reportedUrls[delCat]) {
+          reportedUrls[delCat] = reportedUrls[delCat].filter(item => {
+            const itemId = typeof item === 'string' ? item : item.id;
+            const itemUrl = typeof item === 'string' ? item : item.url;
+            return itemId !== delId && itemUrl !== delUrl && cleanUrl(itemUrl) !== cleanUrl(delUrl);
+          });
+          if (reportedUrls[delCat].length === 0) delete reportedUrls[delCat];
+        } else {
+          for (const cat of Object.keys(reportedUrls)) {
+            reportedUrls[cat] = reportedUrls[cat].filter(item => {
+              const itemId = typeof item === 'string' ? item : item.id;
+              const itemUrl = typeof item === 'string' ? item : item.url;
+              return itemId !== delId && itemUrl !== delUrl && cleanUrl(itemUrl) !== cleanUrl(delUrl);
+            });
+            if (reportedUrls[cat].length === 0) delete reportedUrls[cat];
+          }
+        }
+        await chrome.storage.local.set({ reported_urls: reportedUrls });
+      }
+
+      chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
+      return { success: true };
+    }
+
+    case 'clearReportQueue': {
+      await chrome.storage.local.set({ reported_urls: {} });
+      chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
+      return { success: true };
+    }
+
+    case 'clearArchive': {
+      await chrome.storage.local.set({ archived_reports: [] });
       chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
       return { success: true };
     }
@@ -366,7 +416,7 @@ async function handleMessage(message) {
       const reportedSessions = data.reported_sessions || {};
 
       const cleanDom = normalizeDomain(extractDomain(addUrl) || cleanUrl(addUrl));
-      const existingDate = findUrlDuplicateDate(cleanDom, reportedUrls, reportedSessions);
+      const existingDate = findUrlInLocalReports(cleanDom, reportedUrls, reportedSessions);
       if (existingDate && !force) {
         return { added: 0, skipped: 1, existingDate: existingDate === 'today' ? currentDate : existingDate };
       }
@@ -487,7 +537,7 @@ async function checkDomain(domain, tabId = -1, isHttps = true) {
   const storage = await chrome.storage.local.get(['reported_urls', 'reported_sessions']);
   const reportedUrls = storage.reported_urls || {};
   const reportedSessions = storage.reported_sessions || {};
-  const localReportDate = findUrlDuplicateDate(extracted, reportedUrls, reportedSessions);
+  const localReportDate = findUrlInLocalReports(extracted, reportedUrls, reportedSessions);
   const onLocalReportList = !!localReportDate;
 
   let ip = null;
@@ -1147,31 +1197,36 @@ async function maybeRolloverDay() {
   }
 }
 
-function findUrlDuplicateDate(targetCleanUrl, reportedUrls, reportedSessions) {
-  if (!targetCleanUrl) return null;
-  const rawTarget = extractDomain(targetCleanUrl) || cleanUrl(targetCleanUrl);
-  const targetDomain = normalizeDomain(rawTarget);
+function findUrlInLocalReports(targetDomain, reportedUrls = {}, reportedSessions = {}) {
   if (!targetDomain) return null;
 
-  for (const list of Object.values(reportedUrls || {})) {
+  for (const cat of Object.keys(reportedUrls)) {
+    const list = reportedUrls[cat];
     if (Array.isArray(list)) {
       for (const entry of list) {
-        const rawEntry = extractDomain(entry) || cleanUrl(entry);
-        const entryDomain = normalizeDomain(rawEntry);
-        if (entryDomain && entryDomain === targetDomain) {
+        const itemUrl = typeof entry === 'string' ? entry : (entry.url || entry.domain);
+        const itemDomain = typeof entry === 'string'
+          ? normalizeDomain(extractDomain(entry) || cleanUrl(entry))
+          : (entry.domain || normalizeDomain(cleanUrl(entry.url)));
+        if (itemDomain === targetDomain || cleanUrl(itemUrl) === targetDomain) {
           return 'today';
         }
       }
     }
   }
 
-  for (const [date, session] of Object.entries(reportedSessions || {})) {
-    for (const list of Object.values(session || {})) {
+  for (const date of Object.keys(reportedSessions)) {
+    const session = reportedSessions[date];
+    if (!session) continue;
+    for (const cat of Object.keys(session)) {
+      const list = session[cat];
       if (Array.isArray(list)) {
         for (const entry of list) {
-          const rawEntry = extractDomain(entry) || cleanUrl(entry);
-          const entryDomain = normalizeDomain(rawEntry);
-          if (entryDomain && entryDomain === targetDomain) {
+          const itemUrl = typeof entry === 'string' ? entry : (entry.url || entry.domain);
+          const itemDomain = typeof entry === 'string'
+            ? normalizeDomain(extractDomain(entry) || cleanUrl(entry))
+            : (entry.domain || normalizeDomain(cleanUrl(entry.url)));
+          if (itemDomain === targetDomain || cleanUrl(itemUrl) === targetDomain) {
             return date;
           }
         }
@@ -1180,6 +1235,55 @@ function findUrlDuplicateDate(targetCleanUrl, reportedUrls, reportedSessions) {
   }
 
   return null;
+}
+
+/** Enriches report entry with resolved IP and Provider / WAF info. */
+async function enrichReportItem(url) {
+  const cleanDom = normalizeDomain(extractDomain(url) || cleanUrl(url));
+  let ip = null;
+  let provider = '-';
+
+  if (cleanDom) {
+    ip = await resolveIpAddress(cleanDom).catch(() => null);
+    if (ip) {
+      const ipDetails = await getIpInfo(ip).catch(() => null);
+      if (ipDetails) {
+        provider = ipDetails.isp || ipDetails.org || '-';
+      }
+    }
+  }
+
+  return {
+    id: `rep_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    url: preserveFullUrl(url),
+    domain: cleanDom || url,
+    ip: ip || '-',
+    provider: provider || '-',
+    addedAt: Date.now()
+  };
+}
+
+/** Checks if domain already exists in active queue or archive. */
+function checkReportDuplicate(cleanDom, reportedUrls = {}, archivedReports = []) {
+  if (!cleanDom) return false;
+  for (const cat of Object.keys(reportedUrls)) {
+    const list = reportedUrls[cat];
+    if (Array.isArray(list)) {
+      for (const entry of list) {
+        const itemDom = typeof entry === 'string'
+          ? normalizeDomain(extractDomain(entry) || cleanUrl(entry))
+          : (entry.domain || normalizeDomain(cleanUrl(entry.url)));
+        if (itemDom === cleanDom) return true;
+      }
+    }
+  }
+  for (const entry of archivedReports) {
+    const itemDom = typeof entry === 'string'
+      ? normalizeDomain(extractDomain(entry) || cleanUrl(entry))
+      : (entry.domain || normalizeDomain(cleanUrl(entry.url)));
+    if (itemDom === cleanDom) return true;
+  }
+  return false;
 }
 
 // ==========================================
