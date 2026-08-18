@@ -69,7 +69,7 @@ function setupEventListeners() {
   if (chrome.runtime?.onMessage) {
     chrome.runtime.onMessage.addListener((message) => {
       if (message.action === 'sslDetailsUpdated') {
-        if (message.domain === currentTabDomain) {
+        if (message.domain === currentTabDomain || message.domain === activeManualDomain) {
           fetchSslUpdateOnly(message.domain, message.tabId);
         }
       }
@@ -82,6 +82,8 @@ function setupEventListeners() {
 // ==========================================
 
 let sslRetryCount = 0;
+let manualSslRetryCount = 0;
+let activeManualDomain = null;
 
 function extractDomainFromInput(input) {
   if (!input) return '';
@@ -132,7 +134,7 @@ async function checkCurrentTab() {
       renderStatusCard(result, statusCardContainer);
       setupTabReportControls(result);
 
-      if (result.sslDetails?.source === 'loading' && sslRetryCount < 2) {
+      if (result.sslDetails?.source === 'loading' && sslRetryCount < 6) {
         sslRetryCount++;
         setTimeout(() => {
           if (currentTabDomain === domain) {
@@ -150,14 +152,27 @@ async function checkCurrentTab() {
 
 async function fetchSslUpdateOnly(domain, tabId) {
   try {
-    const result = await sendMessage({
-      action: 'checkDomainForTab',
-      domain,
-      tabId: tabId || -1,
-      url: currentTabUrl
-    });
-    if (result && !result.error && currentTabDomain === domain) {
-      renderStatusCard(result, statusCardContainer);
+    if (domain === currentTabDomain) {
+      const result = await sendMessage({
+        action: 'checkDomainForTab',
+        domain,
+        tabId: tabId || -1,
+        url: currentTabUrl
+      });
+      if (result && !result.error && currentTabDomain === domain) {
+        renderStatusCard(result, statusCardContainer);
+      }
+    }
+
+    if (domain === activeManualDomain) {
+      const result = await sendMessage({
+        action: 'checkDomain',
+        domain
+      });
+      if (result && !result.error && activeManualDomain === domain) {
+        renderStatusCard(result, resultEl);
+        manualAddRow.hidden = false;
+      }
     }
   } catch { }
 }
@@ -185,6 +200,8 @@ async function handleManualCheck() {
   manualAddFeedback.hidden = true;
 
   const domainToQuery = extractDomainFromInput(input);
+  activeManualDomain = domainToQuery;
+  manualSslRetryCount = 0;
   renderInitialCard(domainToQuery, input, resultEl);
 
   try {
@@ -193,10 +210,15 @@ async function handleManualCheck() {
       domain: domainToQuery
     });
 
-    lastCheckedDomain = result.cleanDomain || domainToQuery;
-    renderStatusCard(result, resultEl);
+    if (activeManualDomain === domainToQuery) {
+      lastCheckedDomain = result.cleanDomain || domainToQuery;
+      renderStatusCard(result, resultEl);
+      manualAddRow.hidden = false;
 
-    manualAddRow.hidden = false;
+      if ((result.sslDetails?.source === 'loading' || !result.sslDetails?.issuer) && manualSslRetryCount < 6) {
+        pollManualSsl(domainToQuery);
+      }
+    }
   } catch (error) {
     resultEl.innerHTML = `
       <div class="status-card">
@@ -206,6 +228,21 @@ async function handleManualCheck() {
   } finally {
     btnCheckEl.disabled = false;
   }
+}
+
+function pollManualSsl(domain) {
+  if (manualSslRetryCount >= 6) return;
+  manualSslRetryCount++;
+  setTimeout(async () => {
+    if (activeManualDomain === domain) {
+      await fetchSslUpdateOnly(domain);
+      const card = resultEl.querySelector('.status-card');
+      const hasIssuer = card && !card.innerHTML.includes('[Checking...]');
+      if (!hasIssuer && activeManualDomain === domain && manualSslRetryCount < 6) {
+        pollManualSsl(domain);
+      }
+    }
+  }, 1000);
 }
 
 // ==========================================
