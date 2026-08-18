@@ -385,10 +385,6 @@ async function handleMessage(message) {
       return { success: true };
     }
 
-      chrome.runtime.sendMessage({ action: 'reportsUpdated' }).catch(() => {});
-      return { success: true };
-    }
-
     case 'addToSession': {
       const { date: addDate, category: addCat, url: addUrl, force = false } = message;
       if (!addDate || !addCat || !addUrl) return { added: 0, skipped: 0, existingDate: null };
