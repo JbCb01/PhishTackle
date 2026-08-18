@@ -858,10 +858,10 @@ async function fetchSslFromCtApi(domain) {
     }
   }
 
-  // 3. Tertiary Layer: CRT.sh API
+  // 3. Tertiary Layer: CRT.sh API (Direct domain lookup)
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
 
     const res = await fetch(`https://crt.sh/?q=${encodeURIComponent(cleanDom)}&output=json`, {
       signal: controller.signal
@@ -902,6 +902,52 @@ async function fetchSslFromCtApi(domain) {
     console.warn(`[PhishTackle SSL] Tertiary CRT.sh API failed for ${cleanDom}:`, err.message);
   }
 
+  // 3b. Tertiary-B Layer: CRT.sh Apex Domain Query (For parent wildcard certs)
+  if (apexDom !== cleanDom) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+      const res = await fetch(`https://crt.sh/?q=${encodeURIComponent(apexDom)}&output=json`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const certs = await res.json();
+        if (Array.isArray(certs) && certs.length > 0) {
+          const latestCert = certs.sort((a, b) => new Date(b.not_after || 0).getTime() - new Date(a.not_after || 0).getTime())[0];
+          if (latestCert) {
+            const rawIssuer = latestCert.issuer_name || 'Unknown Issuer';
+            const rawSubject = latestCert.name_value || latestCert.common_name || cleanDom;
+            const issuer = extractCleanIssuer(rawIssuer);
+            const subject = extractCleanSubject(rawSubject);
+            const validFrom = latestCert.not_before ? new Date(latestCert.not_before).getTime() : null;
+            const validTo = latestCert.not_after ? new Date(latestCert.not_after).getTime() : null;
+            const daysRemaining = validTo ? Math.ceil((validTo - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+
+            return {
+              domain: cleanDom,
+              secure: true,
+              state: 'secure',
+              issuer,
+              rawIssuer,
+              subject,
+              rawSubject,
+              validFrom,
+              validTo,
+              daysRemaining,
+              source: 'crt_sh_apex_api',
+              timestamp: Date.now()
+            };
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(`[PhishTackle SSL] Tertiary CRT.sh Apex API failed for ${apexDom}:`, err.message);
+    }
+  }
+
   // 4. Quaternary Layer: Direct Browser Network TLS Probe (Guaranteed Browser TLS verification)
   try {
     const controller = new AbortController();
@@ -918,8 +964,8 @@ async function fetchSslFromCtApi(domain) {
       domain: cleanDom,
       secure: true,
       state: 'secure',
-      issuer: 'Verified HTTPS (TLS Handshake)',
-      rawIssuer: 'Verified HTTPS (Browser TLS Handshake)',
+      issuer: null,
+      rawIssuer: null,
       subject: cleanDom,
       rawSubject: cleanDom,
       validFrom: null,

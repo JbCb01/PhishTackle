@@ -353,28 +353,28 @@ function buildCheckDetails(result) {
 
   const sslDetails = result.sslDetails;
   const sslIssuer = result.sslIssuer || sslDetails?.issuer;
-  if (sslIssuer) {
+
+  const isDummySsl = !sslIssuer || sslIssuer.includes('Verified HTTPS') || sslIssuer === 'Unknown Issuer';
+
+  if (!isDummySsl) {
     details.push(['SSL Issuer:', sslIssuer, false]);
-  } else if (result.isHttps) {
-    details.push(['SSL Status:', '[Checking...]', false]);
-  }
 
-  if (sslDetails?.subject) {
-    details.push(['SSL Owner / Subject:', sslDetails.subject, false]);
-  }
-
-  if (sslDetails?.daysRemaining !== undefined && sslDetails?.daysRemaining !== null) {
-    const days = sslDetails.daysRemaining;
-    let expText = '';
-    if (days > 0) {
-      expText = `Valid (${days} ${days === 1 ? 'day' : 'days'} remaining)`;
-    } else {
-      expText = `Expired (${Math.abs(days)} ${Math.abs(days) === 1 ? 'day' : 'days'} ago)`;
+    const subject = sslDetails?.subject;
+    if (subject && !subject.includes('Verified HTTPS') && subject !== 'Unknown Subject') {
+      details.push(['SSL Owner / Subject:', subject, false]);
     }
-    details.push(['SSL Expiration:', expText, false]);
-  }
 
-  if (result.isHttps === false) {
+    if (sslDetails?.daysRemaining !== undefined && sslDetails?.daysRemaining !== null) {
+      const days = sslDetails.daysRemaining;
+      let expText = '';
+      if (days > 0) {
+        expText = `Valid (${days} ${days === 1 ? 'day' : 'days'} remaining)`;
+      } else {
+        expText = `Expired (${Math.abs(days)} ${Math.abs(days) === 1 ? 'day' : 'days'} ago)`;
+      }
+      details.push(['SSL Expiration:', expText, false]);
+    }
+  } else if (result.isHttps === false) {
     details.push(['HTTP Status:', 'Insecure connection (HTTP)', false]);
   }
 
