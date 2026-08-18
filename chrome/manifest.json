@@ -69,7 +69,9 @@
     {
       "matches": [
         "*://www.google.com/search*",
-        "*://google.com/search*"
+        "*://google.com/search*",
+        "*://www.google.pl/search*",
+        "*://google.pl/search*"
       ],
       "css": ["features/google-search-assistant/google-search-checkboxes.css"],
       "js": ["features/google-search-assistant/google-search-checkboxes.js"],

@@ -4,6 +4,8 @@
   gap: 5px;
   margin-right: 6px;
   vertical-align: middle;
+  cursor: default;
+  user-select: none;
 }
 
 .phishtackle-cb {
@@ -11,6 +13,7 @@
   height: 15px;
   cursor: pointer;
   accent-color: #5b8af5;
+  vertical-align: middle;
 }
 
 .phishtackle-badge {
@@ -22,6 +25,7 @@
   letter-spacing: 0.5px;
   line-height: 1.2;
   font-family: system-ui, -apple-system, sans-serif;
+  vertical-align: middle;
 }
 
 .phishtackle-badge--cert {
