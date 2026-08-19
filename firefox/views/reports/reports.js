@@ -304,7 +304,7 @@ function renderArchiveView() {
         </table>
       </div>
     </section>
-  `;
+  `);
 
   attachArchiveEventListeners();
 }
