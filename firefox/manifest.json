@@ -7,7 +7,10 @@
     "gecko": {
       "id": "phishtackle@jbcb01.github.io",
       "strict_min_version": "109.0",
-      "update_url": "https://raw.githubusercontent.com/JbCb01/PhishTackle/main/updates/updates-firefox.json"
+      "update_url": "https://raw.githubusercontent.com/JbCb01/PhishTackle/main/updates/updates-firefox.json",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
     }
   },
   "permissions": [
