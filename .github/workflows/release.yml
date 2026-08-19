@@ -88,6 +88,12 @@ jobs:
             echo "⚠️ Chrome CRX not found."
           fi
 
+          # 3. Process Chrome ZIP (rename to clean phishtackle-chrome-VERSION.zip for macOS users)
+          if [ -f "dist/chrome/phishtackle-chrome.zip" ]; then
+            cp "dist/chrome/phishtackle-chrome.zip" "dist/release-assets/phishtackle-chrome-${VERSION}.zip"
+            echo "✅ Prepared: dist/release-assets/phishtackle-chrome-${VERSION}.zip"
+          fi
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
