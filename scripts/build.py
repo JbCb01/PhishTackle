@@ -13,6 +13,7 @@ import sys
 import shutil
 import zipfile
 import argparse
+import subprocess
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 FIREFOX_DIR = os.path.join(ROOT_DIR, "firefox")
@@ -83,20 +84,33 @@ def build_chrome():
 
     out_zip = os.path.join(DIST_CHROME_DIR, "phishtackle-chrome.zip")
     zip_folder(chrome_stage_dir, out_zip)
-
-    # Cleanup staging directory
-    shutil.rmtree(chrome_stage_dir)
-
     size_zip = os.path.getsize(out_zip) / 1024
     print(f"✅ Built Chrome ZIP: dist/chrome/phishtackle-chrome.zip ({size_zip:.1f} KB)")
 
-    # Check if a chrome.pem or key.pem file exists to indicate CRX generation capability
+    # 3. Check if chrome.pem exists to automatically pack .crx via google-chrome CLI
     key_pem = os.path.join(ROOT_DIR, "chrome.pem")
     if not os.path.exists(key_pem):
         key_pem = os.path.join(ROOT_DIR, "key.pem")
 
     if os.path.exists(key_pem):
-        print(f"ℹ️ Found private key ({os.path.basename(key_pem)}). CRX package can be built.")
+        out_crx = os.path.join(DIST_CHROME_DIR, "phishtackle-chrome.crx")
+        try:
+            cmd = ["google-chrome", f"--pack-extension={chrome_stage_dir}", f"--pack-extension-key={key_pem}"]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            produced_crx = f"{chrome_stage_dir}.crx"
+            if os.path.exists(produced_crx):
+                shutil.move(produced_crx, out_crx)
+                size_crx = os.path.getsize(out_crx) / 1024
+                print(f"✅ Built Chrome CRX: dist/chrome/phishtackle-chrome.crx ({size_crx:.1f} KB)")
+            else:
+                print(f"ℹ️ Chrome CLI packing output: {res.stderr.strip() or res.stdout.strip()}")
+        except Exception as e:
+            print(f"⚠️ Could not generate CRX automatically: {e}")
+
+    # Cleanup staging directory
+    if os.path.exists(chrome_stage_dir):
+        shutil.rmtree(chrome_stage_dir)
+
     return True
 
 def main():
