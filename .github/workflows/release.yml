@@ -1,0 +1,73 @@
+name: Release & Sign Extensions
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    name: Build, Sign & Release Extensions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Restore Chrome PEM Key
+        env:
+          CHROME_PEM: ${{ secrets.CHROME_PEM_KEY }}
+        run: |
+          if [ -n "$CHROME_PEM" ]; then
+            echo "$CHROME_PEM" > chrome.pem
+            echo "✅ Chrome PEM key restored for signing."
+          fi
+
+      - name: Install Google Chrome CLI & web-ext
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable || true
+          npm install -g web-ext
+
+      - name: Build Packages via scripts/build.py
+        run: |
+          python3 scripts/build.py
+
+      - name: Sign Firefox Extension via Mozilla AMO API
+        env:
+          AMO_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          if [ -n "$AMO_KEY" ] && [ -n "$AMO_SECRET" ]; then
+            mkdir -p dist/firefox/signed
+            npx web-ext sign \
+              --source-dir firefox \
+              --api-key "$AMO_KEY" \
+              --api-secret "$AMO_SECRET" \
+              --artifacts-dir dist/firefox/signed/ \
+              --channel unlisted
+            echo "✅ Mozilla AMO signing completed successfully."
+          else
+            echo "⚠️ AMO API keys not provided in GitHub Secrets. Skipping automatic Firefox signing."
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/firefox/signed/*.xpi
+            dist/firefox/phishtackle-firefox.zip
+            dist/chrome/phishtackle-chrome.crx
+            dist/chrome/phishtackle-chrome.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
