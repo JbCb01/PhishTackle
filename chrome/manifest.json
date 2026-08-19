@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PhishTackle",
-  "version": "1.0",
+  "version": "1.0.0",
   "description": "Real-time phishing and malicious domain detector designed for Threat Hunters and security analysts.",
   "update_url": "https://raw.githubusercontent.com/JbCb01/PhishTackle/main/updates/updates-chrome.xml",
   "permissions": [
@@ -58,13 +58,19 @@
       "resources": [
         "features/clipboard-protection/clipboard-interceptor.js"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["features/clipboard-protection/clipboard-bridge.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "features/clipboard-protection/clipboard-bridge.js"
+      ],
       "run_at": "document_start"
     },
     {
@@ -72,8 +78,12 @@
         "*://www.google.com/search*",
         "*://google.com/search*"
       ],
-      "css": ["features/google-search-assistant/google-search-checkboxes.css"],
-      "js": ["features/google-search-assistant/google-search-checkboxes.js"],
+      "css": [
+        "features/google-search-assistant/google-search-checkboxes.css"
+      ],
+      "js": [
+        "features/google-search-assistant/google-search-checkboxes.js"
+      ],
       "run_at": "document_end"
     },
     {
@@ -83,7 +93,9 @@
         "*://web.facebook.com/*",
         "*://m.facebook.com/*"
       ],
-      "js": ["features/facebook-refresh-blocker/facebook-prevent-refresh.js"],
+      "js": [
+        "features/facebook-refresh-blocker/facebook-prevent-refresh.js"
+      ],
       "run_at": "document_start",
       "world": "MAIN"
     },
@@ -93,8 +105,12 @@
         "*://www.urlscan.io/*",
         "*://pro.urlscan.io/*"
       ],
-      "css": ["features/urlscan-assistant/urlscan-assistant.css"],
-      "js": ["features/urlscan-assistant/urlscan-assistant.js"],
+      "css": [
+        "features/urlscan-assistant/urlscan-assistant.css"
+      ],
+      "js": [
+        "features/urlscan-assistant/urlscan-assistant.js"
+      ],
       "run_at": "document_end"
     }
   ]

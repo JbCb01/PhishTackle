@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-PhishTackle Build Script
+PhishTackle Build Script & Version Manager
 Packages Firefox (.zip source for AMO) and Chrome (.zip & .crx) extensions into organized dist/ directory.
 Usage:
     python3 scripts/build.py
+    python3 scripts/build.py --set-version 1.1.0
     python3 scripts/build.py --target firefox
-    python3 scripts/build.py --target chrome
 """
 
 import os
 import sys
+import json
 import shutil
 import zipfile
 import argparse
@@ -23,6 +24,67 @@ DIST_FIREFOX_DIR = os.path.join(DIST_DIR, "firefox")
 DIST_CHROME_DIR = os.path.join(DIST_DIR, "chrome")
 
 SHARED_FOLDERS = ["background", "features", "utils", "views", "icons", "config.yaml"]
+
+def set_version(version):
+    """Updates version number across all manifest and update files automatically."""
+    print(f"🏷️ Bumping version to: {version}")
+
+    # 1. Update firefox/manifest.json
+    ff_manifest_path = os.path.join(FIREFOX_DIR, "manifest.json")
+    if os.path.exists(ff_manifest_path):
+        with open(ff_manifest_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["version"] = version
+        with open(ff_manifest_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+        print(f"  ✏️ Updated firefox/manifest.json -> {version}")
+
+    # 2. Update chrome/manifest.json
+    cr_manifest_path = os.path.join(CHROME_DIR, "manifest.json")
+    if os.path.exists(cr_manifest_path):
+        with open(cr_manifest_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        data["version"] = version
+        with open(cr_manifest_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+        print(f"  ✏️ Updated chrome/manifest.json -> {version}")
+
+    # 3. Update updates/updates-firefox.json
+    ff_update_path = os.path.join(ROOT_DIR, "updates", "updates-firefox.json")
+    if os.path.exists(ff_update_path):
+        addon_id = "phishtackle@jbcb01.github.io"
+        update_data = {
+            "addons": {
+                addon_id: {
+                    "updates": [
+                        {
+                            "version": version,
+                            "update_link": f"https://github.com/JbCb01/PhishTackle/releases/download/v{version}/phishtackle.xpi"
+                        }
+                    ]
+                }
+            }
+        }
+        with open(ff_update_path, "w", encoding="utf-8") as f:
+            json.dump(update_data, f, indent=2)
+            f.write("\n")
+        print(f"  ✏️ Updated updates/updates-firefox.json -> {version}")
+
+    # 4. Update updates/updates-chrome.xml
+    cr_update_path = os.path.join(ROOT_DIR, "updates", "updates-chrome.xml")
+    if os.path.exists(cr_update_path):
+        xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
+<gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
+  <app appId="YOUR_CHROME_EXTENSION_ID">
+    <updatecheck codebase="https://github.com/JbCb01/PhishTackle/releases/download/v{version}/phishtackle.crx" version="{version}" />
+  </app>
+</gupdate>
+"""
+        with open(cr_update_path, "w", encoding="utf-8") as f:
+            f.write(xml_content)
+        print(f"  ✏️ Updated updates/updates-chrome.xml -> {version}")
 
 def clean_dist():
     """Ensures dist directory structure is clean and organized."""
@@ -112,7 +174,11 @@ def build_chrome():
 def main():
     parser = argparse.ArgumentParser(description="PhishTackle Build Utility")
     parser.add_argument("--target", choices=["all", "firefox", "chrome"], default="all", help="Target browser build")
+    parser.add_argument("--set-version", type=str, help="Update version across all manifests automatically (e.g., 1.1.0)")
     args = parser.parse_args()
+
+    if args.set_version:
+        set_version(args.set_version)
 
     clean_dist()
 
