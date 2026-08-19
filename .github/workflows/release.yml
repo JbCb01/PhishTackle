@@ -65,13 +65,33 @@ jobs:
             echo "⚠️ AMO API keys not provided in GitHub Secrets. Skipping automatic Firefox signing."
           fi
 
+      - name: Assemble Final Clean Release Assets
+        run: |
+          mkdir -p dist/release-assets
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG_NAME#v}"
+
+          # 1. Process Firefox Signed XPI (rename hash prefix to clean phishtackle-firefox-VERSION.xpi)
+          RAW_XPI=$(ls dist/firefox/signed/*.xpi 2>/dev/null | head -n 1 || true)
+          if [ -f "$RAW_XPI" ]; then
+            cp "$RAW_XPI" "dist/release-assets/phishtackle-firefox-${VERSION}.xpi"
+            echo "✅ Prepared: dist/release-assets/phishtackle-firefox-${VERSION}.xpi"
+          else
+            echo "⚠️ Signed Firefox XPI not found."
+          fi
+
+          # 2. Process Chrome CRX (rename to clean phishtackle-chrome-VERSION.crx)
+          if [ -f "dist/chrome/phishtackle-chrome.crx" ]; then
+            cp "dist/chrome/phishtackle-chrome.crx" "dist/release-assets/phishtackle-chrome-${VERSION}.crx"
+            echo "✅ Prepared: dist/release-assets/phishtackle-chrome-${VERSION}.crx"
+          else
+            echo "⚠️ Chrome CRX not found."
+          fi
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/firefox/signed/*.xpi
-            dist/firefox/phishtackle-firefox.zip
-            dist/chrome/phishtackle-chrome.crx
-            dist/chrome/phishtackle-chrome.zip
+            dist/release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -71,7 +71,7 @@ def set_version(version):
                     "updates": [
                         {
                             "version": version,
-                            "update_link": f"https://github.com/JbCb01/PhishTackle/releases/download/v{version}/phishtackle.xpi"
+                            "update_link": f"https://github.com/JbCb01/PhishTackle/releases/download/v{version}/phishtackle-firefox-{version}.xpi"
                         }
                     ]
                 }
@@ -88,7 +88,7 @@ def set_version(version):
         xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
   <app appId="YOUR_CHROME_EXTENSION_ID">
-    <updatecheck codebase="https://github.com/JbCb01/PhishTackle/releases/download/v{version}/phishtackle.crx" version="{version}" />
+    <updatecheck codebase="https://github.com/JbCb01/PhishTackle/releases/download/v{version}/phishtackle-chrome-{version}.crx" version="{version}" />
   </app>
 </gupdate>
 """
