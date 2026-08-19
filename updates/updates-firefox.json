@@ -1,0 +1,12 @@
+{
+  "addons": {
+    "phishtackle@example.com": {
+      "updates": [
+        {
+          "version": "1.0.0",
+          "update_link": "https://github.com/JbCb01/PhishTackle/releases/download/v1.0.0/phishtackle.xpi"
+        }
+      ]
+    }
+  }
+}

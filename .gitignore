@@ -1,7 +1,10 @@
 temp/
 dist/
 *.zip
+*.xpi
+*.crx
+*.pem
+web-ext-artifacts/
 .DS_Store
 *.log
-*.xpi
 todo.md
