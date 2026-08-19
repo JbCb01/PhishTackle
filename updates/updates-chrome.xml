@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gupdate xmlns="http://www.google.com/update2/response" protocol="2.0">
   <app appId="YOUR_CHROME_EXTENSION_ID">
-    <updatecheck codebase="https://github.com/JbCb01/PhishTackle/releases/download/v1.0.1/phishtackle.crx" version="1.0.1" />
+    <updatecheck codebase="https://github.com/JbCb01/PhishTackle/releases/download/v1.0.2/phishtackle-chrome-1.0.2.crx" version="1.0.2" />
   </app>
 </gupdate>

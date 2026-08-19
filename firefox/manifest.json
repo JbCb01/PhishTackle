@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PhishTackle",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Real-time phishing and malicious domain detector designed for Threat Hunters and security analysts.",
   "browser_specific_settings": {
     "gecko": {
