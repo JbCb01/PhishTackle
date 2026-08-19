@@ -62,6 +62,28 @@ Wtyczka pozwala na szybkie sprawdzenie przeglądanej domeny pod kątem:
 - **Ochrona schowka `[BETA]`**:
   - Wykrywanie prób nieautoryzowanego podmieniania treści schowka (domyślnie wyłączone).
 
+## Instrukcja Instalacji
+
+### Mozilla Firefox (macOS / Windows / Linux)
+1. Pobierz plik `phishtackle-firefox-VERSION.xpi` z sekcji Assets najnowszego wydania.
+2. Otwórz przeglądarkę Firefox i przeciągnij pobrany plik `.xpi` na okno przeglądarki (alternatywnie przejdź pod adres `about:addons`, kliknij ikonę koła zębatego i wybierz opcję "Zainstaluj dodatek z pliku...").
+3. Potwierdź instalację przyciskiem "Dodaj". Wtyczka zostanie zainstalowana na stałe.
+
+### Google Chrome — macOS
+1. Pobierz plik `phishtackle-chrome-VERSION.zip` z sekcji Assets najnowszego wydania.
+2. Rozpakuj pobrane archiwum `.zip` do stałego folderu na dysku.
+3. Otwórz przeglądarkę Chrome i przejdź pod adres `chrome://extensions/`.
+4. Włącz przełącznik "Tryb dewelopera" w prawym górnym rogu ekranu.
+5. Kliknij przycisk "Wczytaj rozpakowane" i wskaż rozpakowany folder wtyczki.
+
+### Google Chrome — Windows / Linux
+1. Pobierz plik `phishtackle-chrome-VERSION.crx` z sekcji Assets najnowszego wydania.
+2. Otwórz przeglądarkę Chrome i przejdź pod adres `chrome://extensions/`.
+3. Włącz przełącznik "Tryb dewelopera" w prawym górnym rogu ekranu.
+4. Przeciągnij pobrany plik `.crx` z menedżera plików i upuść go na stronę `chrome://extensions/`.
+5. Potwierdź instalację w wyświetlonym oknie dialogowym.
+*(Alternatywnie można skorzystać z instrukcji dla systemu macOS i zainstalować wtyczkę z pliku `.zip`).*
+
 ---
 
 ## Uwagi i błędy

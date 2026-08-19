@@ -78,6 +78,10 @@ jobs:
             echo "✅ Prepared: dist/release-assets/phishtackle-firefox-${VERSION}.xpi"
           else
             echo "⚠️ Signed Firefox XPI not found."
+          # 1b. Process Firefox ZIP source
+          if [ -f "dist/firefox/phishtackle-firefox.zip" ]; then
+            cp "dist/firefox/phishtackle-firefox.zip" "dist/release-assets/phishtackle-firefox-${VERSION}.zip"
+            echo "Prepared: dist/release-assets/phishtackle-firefox-${VERSION}.zip"
           fi
 
           # 2. Process Chrome CRX (rename to clean phishtackle-chrome-VERSION.crx)
