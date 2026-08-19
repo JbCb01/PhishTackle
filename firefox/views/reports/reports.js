@@ -1,4 +1,4 @@
-import { escapeHtml, setSafeHTML, sendMessage, cleanUrl, formatDate } from '../../utils/domain-utils.js';
+import { escapeHtml, setSafeHTML, sendMessage, cleanUrl } from '../../utils/domain-utils.js';
 
 // ==========================================
 // State & Elements
