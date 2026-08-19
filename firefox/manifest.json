@@ -5,7 +5,7 @@
   "description": "Real-time phishing and malicious domain detector designed for Threat Hunters and security analysts.",
   "browser_specific_settings": {
     "gecko": {
-      "id": "phishtackle@example.com",
+      "id": "phishtackle@jbcb01.github.io",
       "strict_min_version": "109.0",
       "update_url": "https://raw.githubusercontent.com/JbCb01/PhishTackle/main/updates/updates-firefox.json"
     }
