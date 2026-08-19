@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PhishTackle Build Script
-Packages Firefox (.xpi) and Chrome (.zip / .crx) extensions into dist/ directory.
+Packages Firefox (.xpi & .zip) and Chrome (.zip & .crx) extensions into organized dist/ directory.
 Usage:
     python3 scripts/build.py
     python3 scripts/build.py --target firefox
@@ -18,49 +18,85 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 FIREFOX_DIR = os.path.join(ROOT_DIR, "firefox")
 CHROME_DIR = os.path.join(ROOT_DIR, "chrome")
 DIST_DIR = os.path.join(ROOT_DIR, "dist")
+DIST_FIREFOX_DIR = os.path.join(DIST_DIR, "firefox")
+DIST_CHROME_DIR = os.path.join(DIST_DIR, "chrome")
+
+SHARED_FOLDERS = ["background", "features", "utils", "views", "icons", "config.yaml"]
 
 def clean_dist():
-    """Ensures dist directory is clean."""
+    """Ensures dist directory structure is clean and organized."""
     if os.path.exists(DIST_DIR):
         shutil.rmtree(DIST_DIR)
-    os.makedirs(DIST_DIR, exist_ok=True)
+    os.makedirs(DIST_FIREFOX_DIR, exist_ok=True)
+    os.makedirs(DIST_CHROME_DIR, exist_ok=True)
     print(f"📁 Initialized clean output directory: {DIST_DIR}")
 
-def build_firefox_xpi():
-    """Packages firefox/ directory into dist/phishtackle-firefox.xpi."""
+def zip_folder(source_folder, target_zip_path):
+    """Zips a folder into a target zip file."""
+    with zipfile.ZipFile(target_zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+        for root, dirs, files in os.walk(source_folder):
+            for file in files:
+                filepath = os.path.join(root, file)
+                arcname = os.path.relpath(filepath, source_folder)
+                z.write(filepath, arcname)
+
+def build_firefox():
+    """Packages firefox/ directory into dist/firefox/phishtackle-firefox.xpi and .zip."""
     if not os.path.exists(FIREFOX_DIR):
         print(f"❌ Error: {FIREFOX_DIR} directory does not exist.")
         return False
 
-    output_xpi = os.path.join(DIST_DIR, "phishtackle-firefox.xpi")
-    with zipfile.ZipFile(output_xpi, "w", zipfile.ZIP_DEFLATED) as z:
-        for root, dirs, files in os.walk(FIREFOX_DIR):
-            for file in files:
-                filepath = os.path.join(root, file)
-                arcname = os.path.relpath(filepath, FIREFOX_DIR)
-                z.write(filepath, arcname)
+    out_xpi = os.path.join(DIST_FIREFOX_DIR, "phishtackle-firefox.xpi")
+    out_zip = os.path.join(DIST_FIREFOX_DIR, "phishtackle-firefox.zip")
 
-    size_kb = os.path.getsize(output_xpi) / 1024
-    print(f"✅ Built Firefox package: dist/phishtackle-firefox.xpi ({size_kb:.1f} KB)")
+    zip_folder(FIREFOX_DIR, out_xpi)
+    shutil.copyfile(out_xpi, out_zip)
+
+    size_xpi = os.path.getsize(out_xpi) / 1024
+    print(f"✅ Built Firefox XPI: dist/firefox/phishtackle-firefox.xpi ({size_xpi:.1f} KB)")
+    print(f"✅ Built Firefox ZIP: dist/firefox/phishtackle-firefox.zip ({size_xpi:.1f} KB)")
     return True
 
-def build_chrome_zip():
-    """Packages chrome/ (or firefox/ fallback) into dist/phishtackle-chrome.zip."""
-    source_dir = CHROME_DIR if (os.path.exists(CHROME_DIR) and len(os.listdir(CHROME_DIR)) > 1) else FIREFOX_DIR
-    if not os.path.exists(source_dir):
-        print(f"❌ Error: {source_dir} directory does not exist.")
-        return False
+def build_chrome():
+    """Assembles Chrome extension using shared core code and chrome/manifest.json."""
+    chrome_stage_dir = os.path.join(DIST_DIR, ".stage_chrome")
+    if os.path.exists(chrome_stage_dir):
+        shutil.rmtree(chrome_stage_dir)
+    os.makedirs(chrome_stage_dir, exist_ok=True)
 
-    output_zip = os.path.join(DIST_DIR, "phishtackle-chrome.zip")
-    with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as z:
-        for root, dirs, files in os.walk(source_dir):
-            for file in files:
-                filepath = os.path.join(root, file)
-                arcname = os.path.relpath(filepath, source_dir)
-                z.write(filepath, arcname)
+    # 1. Copy shared code/features from firefox directory
+    for item in SHARED_FOLDERS:
+        src_path = os.path.join(FIREFOX_DIR, item)
+        dst_path = os.path.join(chrome_stage_dir, item)
+        if os.path.isdir(src_path):
+            shutil.copytree(src_path, dst_path)
+        elif os.path.isfile(src_path):
+            shutil.copyfile(src_path, dst_path)
 
-    size_kb = os.path.getsize(output_zip) / 1024
-    print(f"✅ Built Chrome package: dist/phishtackle-chrome.zip ({size_kb:.1f} KB)")
+    # 2. Copy Chrome-specific manifest.json
+    chrome_manifest = os.path.join(CHROME_DIR, "manifest.json")
+    if os.path.exists(chrome_manifest):
+        shutil.copyfile(chrome_manifest, os.path.join(chrome_stage_dir, "manifest.json"))
+    else:
+        print(f"⚠️ Warning: {chrome_manifest} not found, falling back to firefox/manifest.json")
+        shutil.copyfile(os.path.join(FIREFOX_DIR, "manifest.json"), os.path.join(chrome_stage_dir, "manifest.json"))
+
+    out_zip = os.path.join(DIST_CHROME_DIR, "phishtackle-chrome.zip")
+    zip_folder(chrome_stage_dir, out_zip)
+
+    # Cleanup staging directory
+    shutil.rmtree(chrome_stage_dir)
+
+    size_zip = os.path.getsize(out_zip) / 1024
+    print(f"✅ Built Chrome ZIP: dist/chrome/phishtackle-chrome.zip ({size_zip:.1f} KB)")
+
+    # Check if a chrome.pem or key.pem file exists to indicate CRX generation capability
+    key_pem = os.path.join(ROOT_DIR, "chrome.pem")
+    if not os.path.exists(key_pem):
+        key_pem = os.path.join(ROOT_DIR, "key.pem")
+
+    if os.path.exists(key_pem):
+        print(f"ℹ️ Found private key ({os.path.basename(key_pem)}). CRX package can be built.")
     return True
 
 def main():
@@ -71,10 +107,10 @@ def main():
     clean_dist()
 
     if args.target in ["all", "firefox"]:
-        build_firefox_xpi()
+        build_firefox()
 
     if args.target in ["all", "chrome"]:
-        build_chrome_zip()
+        build_chrome()
 
     print("🎉 Build completed successfully.")
 

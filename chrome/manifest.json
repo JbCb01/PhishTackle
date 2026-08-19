@@ -3,6 +3,7 @@
   "name": "PhishTackle",
   "version": "1.0",
   "description": "Real-time phishing and malicious domain detector designed for Threat Hunters and security analysts.",
+  "update_url": "https://raw.githubusercontent.com/JbCb01/PhishTackle/main/updates/updates-chrome.xml",
   "permissions": [
     "storage",
     "alarms",
@@ -69,9 +70,7 @@
     {
       "matches": [
         "*://www.google.com/search*",
-        "*://google.com/search*",
-        "*://www.google.pl/search*",
-        "*://google.pl/search*"
+        "*://google.com/search*"
       ],
       "css": ["features/google-search-assistant/google-search-checkboxes.css"],
       "js": ["features/google-search-assistant/google-search-checkboxes.js"],
@@ -85,7 +84,8 @@
         "*://m.facebook.com/*"
       ],
       "js": ["features/facebook-refresh-blocker/facebook-prevent-refresh.js"],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "world": "MAIN"
     },
     {
       "matches": [

@@ -160,6 +160,14 @@ export function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+/** Safely assigns HTML template string to a DOM element using DOMParser. */
+export function setSafeHTML(element, htmlString) {
+  if (!element) return;
+  const parser = new DOMParser();
+  const parsed = parser.parseFromString(htmlString, 'text/html');
+  element.replaceChildren(...parsed.body.childNodes);
+}
+
 /** Promisified chrome.runtime.sendMessage wrapper. */
 export function sendMessage(message) {
   return new Promise((resolve, reject) => {

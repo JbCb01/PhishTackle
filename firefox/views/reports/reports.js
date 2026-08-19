@@ -1,4 +1,4 @@
-import { escapeHtml, sendMessage, cleanUrl } from '../../utils/domain-utils.js';
+import { escapeHtml, setSafeHTML, sendMessage, cleanUrl, formatDate } from '../../utils/domain-utils.js';
 
 // ==========================================
 // State & Elements
@@ -16,7 +16,7 @@ const countArchiveEl = document.getElementById('count-archive');
 
 const reportsTitleEl = document.getElementById('reports-title');
 const reportsSubtitleEl = document.getElementById('reports-subtitle');
-const contentContainer = document.getElementById('content-container');
+const contentContainer = document.getElementById('reports-content-container');
 const addDomainCard = document.getElementById('add-domain-card');
 
 const addDomainInput = document.getElementById('add-domain-input');
@@ -61,7 +61,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (chrome.storage?.onChanged) {
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === 'local' && (changes.reported_urls || changes.archived_reports)) {
+      if (area === 'local' && (changes.reported_urls || changes.reported_sessions || changes.reported_date)) {
         loadAndRender().catch(() => {});
       }
     });
@@ -75,9 +75,14 @@ async function loadCategories() {
   } catch {
     categories = ['other'];
   }
-  addDomainSelect.innerHTML = categories
-    .map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`)
-    .join('');
+  const fragment = document.createDocumentFragment();
+  categories.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    fragment.appendChild(opt);
+  });
+  addDomainSelect.replaceChildren(fragment);
 }
 
 async function loadAndRender() {
@@ -90,7 +95,7 @@ async function loadAndRender() {
     updateSidebarCounts();
     renderMainView();
   } catch (e) {
-    contentContainer.innerHTML = `<div class="empty-state">Error loading data: ${escapeHtml(e.message)}</div>`;
+    setSafeHTML(contentContainer, `<div class="empty-state">Error loading data: ${escapeHtml(e.message)}</div>`);
   }
 }
 
@@ -151,18 +156,18 @@ function renderQueueView() {
   const activeCats = Object.keys(queue).filter(cat => Array.isArray(queue[cat]) && queue[cat].length > 0);
 
   if (activeCats.length === 0) {
-    contentContainer.innerHTML = `
+    setSafeHTML(contentContainer, `
       <div class="empty-state">
         No active domain reports in queue.<br>
         <span style="font-size: 12px; color: var(--text-tertiary);">
           You can add a domain manually above or check boxes on search results.
         </span>
       </div>
-    `;
+    `);
     return;
   }
 
-  contentContainer.innerHTML = activeCats.map(cat => {
+  const sectionsHtml = activeCats.map(cat => {
     const list = queue[cat] || [];
     const rowsHtml = list.map(item => {
       const normalized = typeof item === 'string'
@@ -228,6 +233,7 @@ function renderQueueView() {
     `;
   }).join('');
 
+  setSafeHTML(contentContainer, sectionsHtml);
   attachQueueEventListeners();
 }
 
@@ -240,14 +246,14 @@ function renderArchiveView() {
   const archived = reportsData.archivedReports || [];
 
   if (archived.length === 0) {
-    contentContainer.innerHTML = `
+    setSafeHTML(contentContainer, `
       <div class="empty-state">
         No archived report records.<br>
         <span style="font-size: 12px; color: var(--text-tertiary);">
           Items moved from Current Queue will appear here.
         </span>
       </div>
-    `;
+    `);
     return;
   }
 
@@ -278,7 +284,7 @@ function renderArchiveView() {
     `;
   }).join('');
 
-  contentContainer.innerHTML = `
+  setSafeHTML(contentContainer, `
     <section class="reports-section">
       <div class="table-wrapper">
         <table class="reports-table">

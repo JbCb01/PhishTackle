@@ -1,4 +1,4 @@
-import { escapeHtml, sendMessage, cleanUrl } from '../../utils/domain-utils.js';
+import { escapeHtml, setSafeHTML, sendMessage, cleanUrl } from '../../utils/domain-utils.js';
 
 // ==========================================
 // DOM Elements & State
@@ -220,11 +220,11 @@ async function handleManualCheck() {
       }
     }
   } catch (error) {
-    resultEl.innerHTML = `
+    setSafeHTML(resultEl, `
       <div class="status-card">
         <div class="status-card__message" style="color: var(--text-tertiary);">Error checking domain: ${escapeHtml(error.message)}</div>
       </div>
-    `;
+    `);
   } finally {
     btnCheckEl.disabled = false;
   }
@@ -237,7 +237,7 @@ function pollManualSsl(domain) {
     if (activeManualDomain === domain) {
       await fetchSslUpdateOnly(domain);
       const card = resultEl.querySelector('.status-card');
-      const hasIssuer = card && !card.innerHTML.includes('[Checking...]');
+      const hasIssuer = card && !card.textContent.includes('[Checking...]');
       if (!hasIssuer && activeManualDomain === domain && manualSslRetryCount < 6) {
         pollManualSsl(domain);
       }
@@ -252,7 +252,7 @@ function pollManualSsl(domain) {
 function renderStatusCard(result, container) {
   const cardData = buildCheckCard(result);
 
-  container.innerHTML = `
+  setSafeHTML(container, `
     <div class="status-card">
       <div class="status-card__header">
         <div class="status-card__indicator ${cardData.indicatorClass}"></div>
@@ -261,7 +261,7 @@ function renderStatusCard(result, container) {
       <div class="status-card__message">${escapeHtml(cardData.messageText)}</div>
       ${buildCheckDetails(result)}
     </div>
-  `;
+  `);
 
   container.querySelectorAll('.copy-ip-value').forEach(el => {
     el.addEventListener('click', async (e) => {
@@ -391,13 +391,13 @@ function buildCheckDetails(result) {
 }
 
 function displayNoDomain(errorMsg) {
-  statusCardContainer.innerHTML = `
+  setSafeHTML(statusCardContainer, `
     <div class="status-card">
       <div class="status-card__message" style="color: var(--text-tertiary);">
         ${escapeHtml(errorMsg || 'No active website to inspect.')}
       </div>
     </div>
-  `;
+  `);
 }
 
 // ==========================================
@@ -412,12 +412,16 @@ async function loadCategories() {
     categories = ['other'];
   }
 
-  const optionsHtml = categories.map(cat =>
-    `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`
-  ).join('');
+  const fragment = document.createDocumentFragment();
+  categories.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = cat;
+    fragment.appendChild(opt);
+  });
 
-  reportCategorySelect.innerHTML = optionsHtml;
-  manualAddCategory.innerHTML = optionsHtml;
+  reportCategorySelect.replaceChildren(fragment.cloneNode(true));
+  manualAddCategory.replaceChildren(fragment);
 }
 
 let isAddAgainMode = false;

@@ -182,13 +182,17 @@
       .map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`)
       .join('');
 
-    actionBar.innerHTML = `
-      <span class="phishtackle-bar__title">PhishTackle</span>
-      <span class="phishtackle-bar__count">Selected: <span id="phishtackle-bar-count-num">0</span> domains</span>
-      <select class="phishtackle-bar__select" id="phishtackle-bar-category">${catOptions}</select>
-      <button class="phishtackle-bar__btn" id="phishtackle-bar-add">Add to list</button>
-      <button class="phishtackle-bar__dismiss" id="phishtackle-bar-dismiss">✕ Deselect</button>
-    `;
+    const parser = new DOMParser();
+    const parsed = parser.parseFromString(`
+      <div id="phishtackle-action-bar-wrap">
+        <span class="phishtackle-bar__title">PhishTackle</span>
+        <span class="phishtackle-bar__count">Selected: <span id="phishtackle-bar-count-num">0</span> domains</span>
+        <select class="phishtackle-bar__select" id="phishtackle-bar-category">${catOptions}</select>
+        <button class="phishtackle-bar__btn" id="phishtackle-bar-add">Add to list</button>
+        <button class="phishtackle-bar__dismiss" id="phishtackle-bar-dismiss">✕ Deselect</button>
+      </div>
+    `, 'text/html');
+    actionBar.replaceChildren(...parsed.body.firstChild.childNodes);
 
     document.body.appendChild(actionBar);
 
