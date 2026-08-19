@@ -5,7 +5,8 @@ Packages Firefox (.zip source for AMO) and Chrome (.zip & .crx) extensions into 
 Usage:
     python3 scripts/build.py
     python3 scripts/build.py --set-version 1.1.0
-    python3 scripts/build.py --target firefox
+    python3 scripts/build.py --release
+    python3 scripts/build.py --set-version 1.1.0 --release
 """
 
 import os
@@ -24,6 +25,15 @@ DIST_FIREFOX_DIR = os.path.join(DIST_DIR, "firefox")
 DIST_CHROME_DIR = os.path.join(DIST_DIR, "chrome")
 
 SHARED_FOLDERS = ["background", "features", "utils", "views", "icons", "config.yaml"]
+
+def get_current_version():
+    """Reads current version from firefox/manifest.json."""
+    ff_manifest_path = os.path.join(FIREFOX_DIR, "manifest.json")
+    if os.path.exists(ff_manifest_path):
+        with open(ff_manifest_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("version", "1.0.0")
+    return "1.0.0"
 
 def set_version(version):
     """Updates version number across all manifest and update files automatically."""
@@ -85,6 +95,20 @@ def set_version(version):
         with open(cr_update_path, "w", encoding="utf-8") as f:
             f.write(xml_content)
         print(f"  ✏️ Updated updates/updates-chrome.xml -> {version}")
+
+def trigger_release(version):
+    """Commits version bump, creates git tag, and pushes to GitHub to trigger CI/CD workflow."""
+    tag_name = f"v{version}"
+    print(f"🚀 Triggering automated release for version: {version} (tag: {tag_name})...")
+    
+    try:
+        subprocess.run(["git", "commit", "-am", f"release: {tag_name}"], check=False)
+        subprocess.run(["git", "tag", "-d", tag_name], check=False)
+        subprocess.run(["git", "tag", tag_name], check=True)
+        subprocess.run(["git", "push", "origin", "main", "--tags", "--force"], check=True)
+        print(f"✅ Pushed tag {tag_name} to GitHub. GitHub Actions release started!")
+    except Exception as e:
+        print(f"❌ Error triggering release: {e}")
 
 def clean_dist():
     """Ensures dist directory structure is clean and organized."""
@@ -172,9 +196,10 @@ def build_chrome():
     return True
 
 def main():
-    parser = argparse.ArgumentParser(description="PhishTackle Build Utility")
+    parser = argparse.ArgumentParser(description="PhishTackle Build & Release Utility")
     parser.add_argument("--target", choices=["all", "firefox", "chrome"], default="all", help="Target browser build")
     parser.add_argument("--set-version", type=str, help="Update version across all manifests automatically (e.g., 1.1.0)")
+    parser.add_argument("--release", action="store_true", help="Automatically commit, tag, and push release to GitHub Actions")
     args = parser.parse_args()
 
     if args.set_version:
@@ -188,7 +213,11 @@ def main():
     if args.target in ["all", "chrome"]:
         build_chrome()
 
-    print("🎉 Build completed successfully.")
+    if args.release:
+        target_version = args.set_version or get_current_version()
+        trigger_release(target_version)
+
+    print("🎉 Done.")
 
 if __name__ == "__main__":
     main()
