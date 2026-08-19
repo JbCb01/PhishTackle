@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 PhishTackle Build Script
-Packages Firefox (.xpi & .zip) and Chrome (.zip & .crx) extensions into organized dist/ directory.
+Packages Firefox (.zip source for AMO) and Chrome (.zip & .crx) extensions into organized dist/ directory.
 Usage:
     python3 scripts/build.py
     python3 scripts/build.py --target firefox
@@ -42,20 +42,16 @@ def zip_folder(source_folder, target_zip_path):
                 z.write(filepath, arcname)
 
 def build_firefox():
-    """Packages firefox/ directory into dist/firefox/phishtackle-firefox.xpi and .zip."""
+    """Packages firefox/ directory into dist/firefox/phishtackle-firefox.zip for AMO validation."""
     if not os.path.exists(FIREFOX_DIR):
         print(f"❌ Error: {FIREFOX_DIR} directory does not exist.")
         return False
 
-    out_xpi = os.path.join(DIST_FIREFOX_DIR, "phishtackle-firefox.xpi")
     out_zip = os.path.join(DIST_FIREFOX_DIR, "phishtackle-firefox.zip")
+    zip_folder(FIREFOX_DIR, out_zip)
 
-    zip_folder(FIREFOX_DIR, out_xpi)
-    shutil.copyfile(out_xpi, out_zip)
-
-    size_xpi = os.path.getsize(out_xpi) / 1024
-    print(f"✅ Built Firefox XPI: dist/firefox/phishtackle-firefox.xpi ({size_xpi:.1f} KB)")
-    print(f"✅ Built Firefox ZIP: dist/firefox/phishtackle-firefox.zip ({size_xpi:.1f} KB)")
+    size_zip = os.path.getsize(out_zip) / 1024
+    print(f"✅ Built Firefox package (for Mozilla AMO upload): dist/firefox/phishtackle-firefox.zip ({size_zip:.1f} KB)")
     return True
 
 def build_chrome():
